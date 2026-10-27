@@ -53,6 +53,7 @@ class EmporiaVueComponent : public PollingComponent, public i2c::I2CDevice {
 
  protected:
   uint8_t last_sequence_num_ = 0;
+  bool have_last_sequence_num_ = false;
   std::vector<PhaseConfig *> phases_;
   std::vector<CTClampConfig *> ct_clamps_;
   CallbackManager<void()> callback_;

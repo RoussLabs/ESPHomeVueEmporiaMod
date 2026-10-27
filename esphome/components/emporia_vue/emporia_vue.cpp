@@ -73,10 +73,14 @@ void EmporiaVueComponent::update() {
 
   ESP_LOGV(TAG, "Received sensor reading with sequence #%d", sensor_reading.sequence_num);
 
-  if (this->last_sequence_num_ && sensor_reading.sequence_num > this->last_sequence_num_ + 1) {
-    ESP_LOGW(TAG, "Detected %d missing reading(s), data may not be accurate!",
-             sensor_reading.sequence_num - this->last_sequence_num_ - 1);
+  if (this->have_last_sequence_num_) {
+    // uint8_t arithmetic wraps correctly across 255 -> 0
+    uint8_t gap = static_cast<uint8_t>(sensor_reading.sequence_num - this->last_sequence_num_ - 1);
+    if (gap != 0) {
+      ESP_LOGW(TAG, "Detected %u missing reading(s), data may not be accurate!", gap);
+    }
   }
+  this->have_last_sequence_num_ = true;
 
   for (auto *phase : this->phases_) {
     phase->update_from_reading(sensor_reading);
