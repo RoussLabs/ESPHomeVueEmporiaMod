@@ -1,6 +1,6 @@
 # ESPHome Emporia Vue — RoussLabs mod
 
-> ⚠️ **Please Note: This is currently a work in progress**\
+> ⚠️ **Please Note: This is currently a work in progress and is not ready yet. Expect many bugs.**\
 > Directed and edited by RoussLabs; grunt work by robots.\
 > Nothing here is anything I wouldn't read or reference myself.
 
