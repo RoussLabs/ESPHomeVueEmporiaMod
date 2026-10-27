@@ -162,17 +162,21 @@ void CTClampConfig::update_from_reading(const SensorReading &sensor_reading) {
     this->power_sensor_->publish_state(calibrated_power);
   }
   if (this->current_sensor_) {
-    float scalar = is_mains_port(this->input_port_) ? (775.0f / 42624.0f) : (775.0f / 170496.0f);
-    this->current_sensor_->publish_state(raw_current * scalar);
+    this->current_sensor_->publish_state(this->get_calibrated_current(raw_current));
   }
 }
 
 float CTClampConfig::get_calibrated_power(int32_t raw_power) const {
   float calibration = this->phase_->get_calibration();
 
-  float correction_factor = (this->input_port_ < 3) ? 5.5 : 22;
+  float correction_factor = is_mains_port(this->input_port_) ? 5.5f : 22.0f;
 
-  return (raw_power * calibration) / correction_factor;
+  return (raw_power * calibration * this->calibration_) / correction_factor;
+}
+
+float CTClampConfig::get_calibrated_current(uint16_t raw_current) const {
+  float scalar = is_mains_port(this->input_port_) ? (775.0f / 42624.0f) : (775.0f / 170496.0f);
+  return raw_current * scalar * this->calibration_;
 }
 
 }  // namespace emporia_vue

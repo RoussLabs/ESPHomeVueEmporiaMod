@@ -83,6 +83,9 @@ SCHEMA_CT_CLAMP = {
     cv.GenerateID(): cv.declare_id(CTClampConfig),
     cv.Required(CONF_PHASE_ID): cv.use_id(PhaseConfig),
     cv.Required(CONF_INPUT): cv.enum(CT_INPUT),
+    # Per-clamp gain applied to both power and current. Use it to trim an
+    # individual CT against a reference meter; 1.0 leaves the reading unchanged.
+    cv.Optional(CONF_CALIBRATION, default=1.0): cv.positive_float,
     cv.Optional(CONF_POWER): sensor.sensor_schema(
         unit_of_measurement=UNIT_WATT,
         device_class=DEVICE_CLASS_POWER,
@@ -212,6 +215,7 @@ async def to_code(config):
         phase_var = await cg.get_variable(ct_config[CONF_PHASE_ID])
         cg.add(ct_clamp_var.set_phase(phase_var))
         cg.add(ct_clamp_var.set_input_port(ct_config[CONF_INPUT]))
+        cg.add(ct_clamp_var.set_calibration(ct_config[CONF_CALIBRATION]))
 
         if CONF_POWER in ct_config:
             power_sensor = await sensor.new_sensor(ct_config[CONF_POWER])

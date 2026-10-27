@@ -127,6 +127,9 @@ class CTClampConfig : public sensor::Sensor {
   const PhaseConfig *get_phase() const { return this->phase_; }
   void set_input_port(CTInputPort input_port) { this->input_port_ = input_port; };
   CTInputPort get_input_port() const { return this->input_port_; }
+  // Per-clamp gain applied to both power and current (CT tolerance / turns ratio).
+  void set_calibration(float calibration) { this->calibration_ = calibration; }
+  float get_calibration() const { return this->calibration_; }
   void set_power_sensor(sensor::Sensor *power_sensor) { this->power_sensor_ = power_sensor; }
   sensor::Sensor *get_power_sensor() const { return this->power_sensor_; }
   void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
@@ -134,10 +137,12 @@ class CTClampConfig : public sensor::Sensor {
 
   void update_from_reading(const SensorReading &sensor_reading);
   float get_calibrated_power(int32_t raw_power) const;
+  float get_calibrated_current(uint16_t raw_current) const;
 
  protected:
   PhaseConfig *phase_;
   CTInputPort input_port_;
+  float calibration_{1.0f};
   sensor::Sensor *power_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
   bool warned_disconnected_{false};
