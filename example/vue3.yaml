@@ -127,7 +127,7 @@ sensor:
         frequency: { name: "Grid Frequency",     filters: [*throttle_avg, *pos] }
       - id: phase_b
         input: RED
-        calibration: 0.01925         # upstream default; calibrate against a meter once L2 is wired
+        calibration: 0.01923         # L2 on the RoussLabs unit vs a Fluke 87V (124.46 V)
         voltage:     { name: "${leg_2} Voltage",     filters: [*throttle_avg, *pos] }
         phase_angle: { name: "${leg_2} Phase Angle", filters: [*throttle_avg, *pos] }
 
