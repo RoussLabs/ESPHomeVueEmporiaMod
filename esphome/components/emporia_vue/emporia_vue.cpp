@@ -1,4 +1,5 @@
 #include "emporia_vue.h"
+#include <cmath>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -138,6 +139,22 @@ int32_t PhaseConfig::extract_power_for_phase(const ReadingPowerEntry &power_entr
 }
 
 void CTClampConfig::update_from_reading(const SensorReading &sensor_reading) {
+  uint16_t raw_current = sensor_reading.current[this->input_port_];
+  if (raw_current == CT_DISCONNECTED_SENTINEL) {
+    // The metering MCU reports 0xFFFF current on a port with no CT plugged in
+    // (observed on the Vue 3). Publish NaN rather than a nonsense value.
+    if (!this->warned_disconnected_) {
+      ESP_LOGW(TAG, "CT port index %d reports no clamp connected (0xFFFF); publishing NaN", this->input_port_);
+      this->warned_disconnected_ = true;
+    }
+    if (this->power_sensor_)
+      this->power_sensor_->publish_state(NAN);
+    if (this->current_sensor_)
+      this->current_sensor_->publish_state(NAN);
+    return;
+  }
+  this->warned_disconnected_ = false;
+
   if (this->power_sensor_) {
     ReadingPowerEntry power_entry = sensor_reading.power[this->input_port_];
     int32_t raw_power = this->phase_->extract_power_for_phase(power_entry);
@@ -145,15 +162,8 @@ void CTClampConfig::update_from_reading(const SensorReading &sensor_reading) {
     this->power_sensor_->publish_state(calibrated_power);
   }
   if (this->current_sensor_) {
-    uint16_t raw_current = sensor_reading.current[this->input_port_];
-    double raw_current_d = (double) raw_current;
-    double scalar;
-    if (is_mains_port(this->input_port_)) {
-      scalar = 775.0 / 42624.0;
-    } else {
-      scalar = 775.0 / 170496.0;
-    }
-    this->current_sensor_->publish_state(raw_current_d * scalar);
+    float scalar = is_mains_port(this->input_port_) ? (775.0f / 42624.0f) : (775.0f / 170496.0f);
+    this->current_sensor_->publish_state(raw_current * scalar);
   }
 }
 

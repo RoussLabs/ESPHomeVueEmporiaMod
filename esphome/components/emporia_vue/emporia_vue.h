@@ -118,6 +118,9 @@ enum CTInputPort : uint8_t {
   SIXTEEN = 18,
 };
 
+// Reported in the current field for a port with no CT connected.
+static constexpr uint16_t CT_DISCONNECTED_SENTINEL = 0xFFFF;
+
 class CTClampConfig : public sensor::Sensor {
  public:
   void set_phase(PhaseConfig *phase) { this->phase_ = phase; };
@@ -137,6 +140,7 @@ class CTClampConfig : public sensor::Sensor {
   CTInputPort input_port_;
   sensor::Sensor *power_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
+  bool warned_disconnected_{false};
 };
 
 }  // namespace emporia_vue
