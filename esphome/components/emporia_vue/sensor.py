@@ -39,6 +39,7 @@ CONF_PHASES = "phases"
 CONF_VIRTUAL_PHASES = "virtual_phases"
 CONF_COMBINE = "combine"
 CONF_ANGLE = "angle"
+CONF_FREQUENCY_CONSTANT = "frequency_constant"
 CONF_PHASE_ID = "phase_id"
 CONF_VARIANT = "variant"
 CONF_FREQUENCY_SAMPLES = "frequency_samples"
@@ -172,6 +173,9 @@ def validate_phases(val):
                     state_class=STATE_CLASS_MEASUREMENT,
                     accuracy_decimals=1,
                 ),
+                # Hz = frequency_constant / raw period count. Default 19610 (Vue 3)
+                # or 25310 (Vue 2); trim against a meter: new = old * f_meter / f_vue.
+                cv.Optional(CONF_FREQUENCY_CONSTANT): cv.float_range(min=1000.0, max=100000.0),
                 cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
                     unit_of_measurement=UNIT_HERTZ,
                     device_class=DEVICE_CLASS_FREQUENCY,
@@ -301,6 +305,8 @@ async def to_code(config):
         phase_var = cg.new_Pvariable(phase_config[CONF_ID], PhaseConfig())
         cg.add(phase_var.set_input_wire(phase_config[CONF_INPUT]))
         cg.add(phase_var.set_calibration(phase_config[CONF_CALIBRATION]))
+        if (fc := phase_config.get(CONF_FREQUENCY_CONSTANT)) is not None:
+            cg.add(phase_var.set_frequency_constant(fc))
 
         if CONF_VOLTAGE in phase_config:
             voltage_sensor = await sensor.new_sensor(phase_config[CONF_VOLTAGE])

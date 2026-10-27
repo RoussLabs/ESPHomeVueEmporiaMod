@@ -11,12 +11,6 @@ namespace emporia_vue {
 
 static const char *const TAG = "emporia_vue";
 
-#if defined(EMPORIA_VUE_VARIANT_VUE3)
-static constexpr float EMPORIA_VUE_FREQUENCY_CONSTANT = 19610.0f;
-#else
-static constexpr float EMPORIA_VUE_FREQUENCY_CONSTANT = 25310.0f;
-#endif
-
 void EmporiaVueComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Emporia Vue");
 #if defined(EMPORIA_VUE_VARIANT_VUE3)
@@ -47,6 +41,8 @@ void EmporiaVueComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Phase");
     ESP_LOGCONFIG(TAG, "    Wire: %s", wire);
     ESP_LOGCONFIG(TAG, "    Calibration: %f", phase->get_calibration());
+    if (phase->get_frequency_sensor() != nullptr)
+      ESP_LOGCONFIG(TAG, "    Frequency constant: %.1f", phase->get_frequency_constant());
     LOG_SENSOR("    ", "Voltage", phase->get_voltage_sensor());
     LOG_SENSOR("    ", "Frequency", phase->get_frequency_sensor());
     LOG_SENSOR("    ", "Phase Angle", phase->get_phase_angle_sensor());
@@ -307,7 +303,7 @@ void PhaseConfig::update_from_reading(const SensorReading &sensor_reading, const
   // validation that these sensors are allowed on this phase is done in the codegen stage
   if (this->frequency_sensor_) {
     // see https://github.com/emporia-vue-local/esphome/pull/88 for constant explanation
-    float frequency = timing.period > 0.0f ? EMPORIA_VUE_FREQUENCY_CONSTANT / timing.period : NAN;
+    float frequency = timing.period > 0.0f ? this->frequency_constant_ / timing.period : NAN;
     this->frequency_sensor_->publish_state(frequency);
   }
   if (this->input_wire_ != PhaseInputWire::BLACK) {

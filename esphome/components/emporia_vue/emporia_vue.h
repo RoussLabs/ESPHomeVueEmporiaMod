@@ -36,6 +36,13 @@ struct __attribute__((__packed__)) SensorReading {
   uint16_t end;
 };
 
+// Hz = constant / raw period count; empirically derived upstream, see PR #88.
+#if defined(EMPORIA_VUE_VARIANT_VUE3)
+static constexpr float EMPORIA_VUE_FREQUENCY_CONSTANT = 19610.0f;
+#else
+static constexpr float EMPORIA_VUE_FREQUENCY_CONSTANT = 25310.0f;
+#endif
+
 // Period / phase-angle counts, optionally averaged over several readings.
 struct AcTiming {
   float period;
@@ -143,6 +150,8 @@ class PhaseConfig : public PhaseBase {
   PhaseInputWire get_input_wire() const { return this->input_wire_; }
   void set_calibration(float calibration) { this->calibration_ = calibration; }
   float get_calibration() const { return this->calibration_; }
+  void set_frequency_constant(float c) { this->frequency_constant_ = c; }
+  float get_frequency_constant() const { return this->frequency_constant_; }
   void set_frequency_sensor(sensor::Sensor *frequency_sensor) { this->frequency_sensor_ = frequency_sensor; }
   sensor::Sensor *get_frequency_sensor() const { return this->frequency_sensor_; }
   void set_phase_angle_sensor(sensor::Sensor *phase_angle_sensor) { this->phase_angle_sensor_ = phase_angle_sensor; }
@@ -159,6 +168,7 @@ class PhaseConfig : public PhaseBase {
  protected:
   PhaseInputWire input_wire_;
   float calibration_;
+  float frequency_constant_{EMPORIA_VUE_FREQUENCY_CONSTANT};
   float phase_angle_deg_{0.0f};
   sensor::Sensor *frequency_sensor_{nullptr};
   sensor::Sensor *phase_angle_sensor_{nullptr};

@@ -187,11 +187,15 @@ If one candidate matches the packet value every time, set `checksum:` to that na
 and bad packets will be discarded and counted in `malformed_readings`. If nothing matches, leave it at `none` and
 please open an issue with a few log lines.
 
-### 6. Frequency / phase-angle resolution
+### 6. Frequency / phase-angle resolution and calibration
 
 The MCU gives the mains period as an integer count (~327 at 60 Hz on the Vue 3), so one reading resolves to
 about 0.18 Hz and 1°. `frequency_samples: 25` averages 25 raw counts (~6 s) before converting, for roughly
 0.01 Hz. This is why upstream readings of "60.3 Hz" look wrong: real grid frequency is held within ±0.04 Hz.
+
+The Hz conversion is `frequency_constant / raw_period` with upstream's empirical constant (19610 on the Vue 3,
+25310 on the Vue 2). Set `frequency_constant` on the BLACK phase to trim it against a meter, exactly like
+voltage: `new = old × f_meter / f_vue`. Use `accuracy_decimals: 2` on the frequency sensor to see the result.
 
 ### 7. Diagnostics
 

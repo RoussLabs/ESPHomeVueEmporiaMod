@@ -124,7 +124,8 @@ sensor:
         input: BLACK
         calibration: 0.01922         # L1 on the RoussLabs unit vs a Fluke 87V (124.58 V); new = old * V_meter / V_vue
         voltage:   { name: "${leg_1} Voltage",   filters: [*throttle_avg, *pos] }
-        frequency: { name: "Grid Frequency",     filters: [*throttle_avg, *pos] }
+        # frequency_constant: 19610   # trim: new = old * f_meter / f_vue
+        frequency: { name: "Grid Frequency",     accuracy_decimals: 2, filters: [*throttle_avg, *pos] }
       - id: phase_b
         input: RED
         calibration: 0.01923         # L2 on the RoussLabs unit vs a Fluke 87V (124.46 V)
