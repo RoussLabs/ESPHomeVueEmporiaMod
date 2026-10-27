@@ -122,12 +122,12 @@ sensor:
     phases:
       - id: phase_a
         input: BLACK
-        calibration: 0.01925         # new = old * V_meter / V_vue
+        calibration: 0.01922         # L1 on the RoussLabs unit vs a Fluke 87V (124.58 V); new = old * V_meter / V_vue
         voltage:   { name: "${leg_1} Voltage",   filters: [*throttle_avg, *pos] }
         frequency: { name: "Grid Frequency",     filters: [*throttle_avg, *pos] }
       - id: phase_b
         input: RED
-        calibration: 0.01925
+        calibration: 0.01925         # upstream default; calibrate against a meter once L2 is wired
         voltage:     { name: "${leg_2} Voltage",     filters: [*throttle_avg, *pos] }
         phase_angle: { name: "${leg_2} Phase Angle", filters: [*throttle_avg, *pos] }
 
