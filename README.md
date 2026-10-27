@@ -41,6 +41,24 @@ Every upstream option still works unchanged. The additions below are all optiona
 
 ### 1. Apparent power, reactive power, power factor
 
+**The short version, for anyone new to this.** With AC, voltage and current are waves, and a load can draw
+current that is out of step with the voltage. That gives four related numbers:
+
+- **Real power (W)** is the energy actually consumed per second. It's what the utility bills and what heats
+  the room. A 1500 W heater uses 1500 W, full stop.
+- **Apparent power (VA)** is simply volts × amps. It's the capacity the wiring, breaker and transformer must
+  carry, whether or not the energy is used.
+- **Reactive power (var)** is the part of the current that sloshes back and forth each cycle without being
+  consumed: motors, transformers and the filters inside electronics cause it. It shows up as amps on the
+  wire but not as watts on the bill.
+- **Power factor** is real ÷ apparent, from 0 to 1. A heater or incandescent bulb is 1.00: every amp does
+  work. A fridge compressor might be 0.7, a cheap LED driver or phone charger 0.5 or worse, meaning they draw
+  roughly twice the current their wattage suggests.
+
+Why care, at home: PF explains why a circuit's amps don't match its watts, which devices are stressing a
+circuit more than their consumption implies, and whether a reading is trustworthy (a resistive load that
+doesn't show PF ≈ 1 means the calibration is off, not the load).
+
 The metering MCU reports real power (P) and true-RMS current (I) per CT and RMS voltage (V) per leg. The
 component now derives, from the same 200 ms reading:
 
