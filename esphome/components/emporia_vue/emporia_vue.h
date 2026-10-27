@@ -48,14 +48,14 @@ struct RawTiming {
 };
 
 enum class ChecksumMode : uint8_t {
-  NONE = 0,
-  DISCOVER,
-  SUM8_BODY,
-  XOR8_BODY,
-  NEGSUM8_BODY,
-  SUM8_ALL,
-  XOR8_ALL,
-  NEGSUM8_ALL,
+  CHECKSUM_MODE_NONE = 0,
+  CHECKSUM_MODE_DISCOVER,
+  CHECKSUM_MODE_SUM8_BODY,
+  CHECKSUM_MODE_XOR8_BODY,
+  CHECKSUM_MODE_NEGSUM8_BODY,
+  CHECKSUM_MODE_SUM8_ALL,
+  CHECKSUM_MODE_XOR8_ALL,
+  CHECKSUM_MODE_NEGSUM8_ALL,
 };
 
 class PhaseConfig;
@@ -87,7 +87,7 @@ class EmporiaVueComponent : public PollingComponent, public i2c::I2CDevice {
   void bump_counter_(uint32_t &counter, sensor::Sensor *sensor);
   bool check_checksum_(const SensorReading &reading);
 
-  ChecksumMode checksum_mode_{ChecksumMode::NONE};
+  ChecksumMode checksum_mode_{ChecksumMode::CHECKSUM_MODE_NONE};
   uint8_t checksum_discover_logged_{0};
 
   uint32_t i2c_errors_{0};
@@ -105,7 +105,7 @@ class EmporiaVueComponent : public PollingComponent, public i2c::I2CDevice {
   CallbackManager<void()> callback_;
 
   uint8_t timing_samples_{1};
-  std::vector<RawTiming> timing_history_;
+  std::vector<RawTiming> timing_history_;  // sized once in setup(), never resized
   size_t timing_index_{0};
   size_t timing_filled_{0};
 };

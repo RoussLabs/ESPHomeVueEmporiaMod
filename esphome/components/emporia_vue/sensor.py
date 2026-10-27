@@ -76,15 +76,15 @@ EmporiaVueUpdateTrigger = emporia_vue_ns.class_(
 
 ChecksumMode = emporia_vue_ns.enum("ChecksumMode", is_class=True)
 CHECKSUM_MODES = {
-    "none": ChecksumMode.NONE,
+    "none": ChecksumMode.CHECKSUM_MODE_NONE,
     # log candidate checksums for the first packets so the algorithm can be found
-    "discover": ChecksumMode.DISCOVER,
-    "sum8_body": ChecksumMode.SUM8_BODY,
-    "xor8_body": ChecksumMode.XOR8_BODY,
-    "negsum8_body": ChecksumMode.NEGSUM8_BODY,
-    "sum8_all": ChecksumMode.SUM8_ALL,
-    "xor8_all": ChecksumMode.XOR8_ALL,
-    "negsum8_all": ChecksumMode.NEGSUM8_ALL,
+    "discover": ChecksumMode.CHECKSUM_MODE_DISCOVER,
+    "sum8_body": ChecksumMode.CHECKSUM_MODE_SUM8_BODY,
+    "xor8_body": ChecksumMode.CHECKSUM_MODE_XOR8_BODY,
+    "negsum8_body": ChecksumMode.CHECKSUM_MODE_NEGSUM8_BODY,
+    "sum8_all": ChecksumMode.CHECKSUM_MODE_SUM8_ALL,
+    "xor8_all": ChecksumMode.CHECKSUM_MODE_XOR8_ALL,
+    "negsum8_all": ChecksumMode.CHECKSUM_MODE_NEGSUM8_ALL,
 }
 
 PhaseInputWire = emporia_vue_ns.enum("PhaseInputWire")
@@ -213,7 +213,7 @@ def validate_phases(val):
     return base_validated
 
 
-def validate_combine(val):
+def validate_combine(val: list) -> list:
     val = cv.ensure_list(cv.use_id(PhaseConfig))(val)
     if len(val) != 2:
         raise cv.Invalid("combine must list exactly two phase ids")

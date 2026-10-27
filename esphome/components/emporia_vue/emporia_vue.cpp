@@ -30,7 +30,7 @@ void EmporiaVueComponent::dump_config() {
   LOG_SENSOR("  ", "Missed Readings", this->missed_reading_sensor_);
 
   for (auto *phase : this->phases_) {
-    std::string wire;
+    const char *wire = "UNKNOWN";
     switch (phase->get_input_wire()) {
       case PhaseInputWire::BLACK:
         wire = "BLACK";
@@ -43,7 +43,7 @@ void EmporiaVueComponent::dump_config() {
         break;
     }
     ESP_LOGCONFIG(TAG, "  Phase");
-    ESP_LOGCONFIG(TAG, "    Wire: %s", wire.c_str());
+    ESP_LOGCONFIG(TAG, "    Wire: %s", wire);
     ESP_LOGCONFIG(TAG, "    Calibration: %f", phase->get_calibration());
     LOG_SENSOR("    ", "Voltage", phase->get_voltage_sensor());
     LOG_SENSOR("    ", "Frequency", phase->get_frequency_sensor());
@@ -132,6 +132,11 @@ void EmporiaVueComponent::add_on_update_callback(std::function<void()> &&callbac
 }
 
 void EmporiaVueComponent::setup() {
+  // Allocate the averaging buffer here; no heap allocation once the loop is running.
+  if (this->timing_samples_ > 1) {
+    this->timing_history_.assign(this->timing_samples_, RawTiming{0, {0, 0}});
+  }
+
   // Publish zero so the diagnostic entities show a value before the first fault.
   if (this->i2c_error_sensor_)
     this->i2c_error_sensor_->publish_state(0);
@@ -141,9 +146,8 @@ void EmporiaVueComponent::setup() {
     this->missed_reading_sensor_->publish_state(0);
 }
 
-// The header carries a checksum byte whose algorithm is not publicly known.
-// Candidates are computed over the "body" (everything after the 4-byte header)
-// and over "all" (the whole packet except the checksum byte itself).
+// Candidate checksums over the body (after the 4-byte header) and over the
+// whole packet minus the checksum byte; the real algorithm is not yet known.
 struct ChecksumCandidates {
   uint8_t sum_body, xor_body, negsum_body;
   uint8_t sum_all, xor_all, negsum_all;
@@ -171,14 +175,13 @@ static ChecksumCandidates compute_checksum_candidates(const SensorReading &readi
 }
 
 bool EmporiaVueComponent::check_checksum_(const SensorReading &reading) {
-  if (this->checksum_mode_ == ChecksumMode::NONE)
+  if (this->checksum_mode_ == ChecksumMode::CHECKSUM_MODE_NONE)
     return true;
 
   ChecksumCandidates c = compute_checksum_candidates(reading);
 
-  if (this->checksum_mode_ == ChecksumMode::DISCOVER) {
-    // Log the first few packets so the algorithm can be identified from real data,
-    // then stay quiet.
+  if (this->checksum_mode_ == ChecksumMode::CHECKSUM_MODE_DISCOVER) {
+    // Log the first few packets so the algorithm can be identified, then stay quiet.
     if (this->checksum_discover_logged_ < 10) {
       this->checksum_discover_logged_++;
       ESP_LOGI(TAG,
@@ -192,17 +195,29 @@ bool EmporiaVueComponent::check_checksum_(const SensorReading &reading) {
 
   uint8_t expected;
   switch (this->checksum_mode_) {
-    case ChecksumMode::SUM8_BODY:    expected = c.sum_body;    break;
-    case ChecksumMode::XOR8_BODY:    expected = c.xor_body;    break;
-    case ChecksumMode::NEGSUM8_BODY: expected = c.negsum_body; break;
-    case ChecksumMode::SUM8_ALL:     expected = c.sum_all;     break;
-    case ChecksumMode::XOR8_ALL:     expected = c.xor_all;     break;
-    case ChecksumMode::NEGSUM8_ALL:  expected = c.negsum_all;  break;
-    default:                         return true;
+    case ChecksumMode::CHECKSUM_MODE_SUM8_BODY:
+      expected = c.sum_body;
+      break;
+    case ChecksumMode::CHECKSUM_MODE_XOR8_BODY:
+      expected = c.xor_body;
+      break;
+    case ChecksumMode::CHECKSUM_MODE_NEGSUM8_BODY:
+      expected = c.negsum_body;
+      break;
+    case ChecksumMode::CHECKSUM_MODE_SUM8_ALL:
+      expected = c.sum_all;
+      break;
+    case ChecksumMode::CHECKSUM_MODE_XOR8_ALL:
+      expected = c.xor_all;
+      break;
+    case ChecksumMode::CHECKSUM_MODE_NEGSUM8_ALL:
+      expected = c.negsum_all;
+      break;
+    default:
+      return true;
   }
   if (expected != reading.checksum) {
-    ESP_LOGW(TAG, "Checksum mismatch: packet 0x%02X, computed 0x%02X; discarding reading", reading.checksum,
-             expected);
+    ESP_LOGW(TAG, "Checksum mismatch: packet 0x%02X, computed 0x%02X; discarding reading", reading.checksum, expected);
     return false;
   }
   return true;
@@ -215,24 +230,16 @@ void EmporiaVueComponent::bump_counter_(uint32_t &counter, sensor::Sensor *senso
 }
 
 AcTiming EmporiaVueComponent::average_timing_(const SensorReading &sensor_reading) {
-  // The period and phase-angle fields are integer counts with ~0.18 Hz / ~1 degree
-  // resolution per reading. Averaging the raw counts over several readings before
-  // converting recovers useful resolution; with frequency_samples: 1 this is a
-  // pass-through of the current reading.
-  size_t n = this->timing_samples_;
+  // Raw counts resolve to ~0.18 Hz / ~1 degree per reading; averaging the counts
+  // before converting recovers resolution. With frequency_samples: 1 this is a pass-through.
+  size_t n = this->timing_history_.size();
   if (n <= 1) {
     return AcTiming{static_cast<float>(sensor_reading.frequency),
                     {static_cast<float>(sensor_reading.degrees[0]), static_cast<float>(sensor_reading.degrees[1])}};
   }
 
-  if (this->timing_history_.size() != n) {
-    this->timing_history_.assign(n, RawTiming{0, {0, 0}});
-    this->timing_index_ = 0;
-    this->timing_filled_ = 0;
-  }
-
-  this->timing_history_[this->timing_index_] = RawTiming{sensor_reading.frequency,
-                                                         {sensor_reading.degrees[0], sensor_reading.degrees[1]}};
+  this->timing_history_[this->timing_index_] =
+      RawTiming{sensor_reading.frequency, {sensor_reading.degrees[0], sensor_reading.degrees[1]}};
   this->timing_index_ = (this->timing_index_ + 1) % n;
   if (this->timing_filled_ < n)
     this->timing_filled_++;
@@ -313,10 +320,8 @@ float VirtualPhaseConfig::get_calibrated_voltage(const SensorReading &sensor_rea
 }
 
 float VirtualPhaseConfig::extract_calibrated_power(const ReadingPowerEntry &power_entry) const {
-  // The MCU reports, for one CT current I, the real power against each leg's
-  // voltage: P_a = Re(V_a I*), P_b = Re(V_b I*). For a line-to-line load the
-  // voltage across it is V_a - V_b, so P = P_a - P_b with no angle assumption.
-  // (At exactly 180° P_b = -P_a and this reduces to the old 'multiply: 2'.)
+  // Line-to-line voltage is V_a - V_b, so P = Re((V_a - V_b) I*) = P_a - P_b for any
+  // angle between the legs; at exactly 180 degrees this equals the old 'multiply: 2'.
   return this->phase_a_->extract_calibrated_power(power_entry) - this->phase_b_->extract_calibrated_power(power_entry);
 }
 
@@ -366,9 +371,7 @@ void CTClampConfig::update_from_reading(const SensorReading &sensor_reading) {
   }
 
   if (want_derived) {
-    // The metering MCU gives real power (P) and true-RMS current (I); with the
-    // phase's RMS voltage (V) we derive apparent power S = V*I, reactive power
-    // Q = sqrt(S^2 - P^2) and true power factor PF = P/S.
+    // From real power P, RMS current I and RMS voltage V: S = V*I, Q = sqrt(S^2 - P^2), PF = P/S.
     float voltage = this->phase_->get_calibrated_voltage(sensor_reading);
     float apparent = voltage * current;
     if (this->apparent_power_sensor_)

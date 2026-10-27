@@ -20,4 +20,4 @@ class EmporiaVueUpdateTrigger : public Trigger<> {
 }  // namespace emporia_vue
 }  // namespace esphome
 
-#endif // ifdef USE_ESP32
+#endif  // ifdef USE_ESP32
