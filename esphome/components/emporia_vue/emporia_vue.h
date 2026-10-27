@@ -47,6 +47,17 @@ struct RawTiming {
   uint16_t degrees[2];
 };
 
+enum class ChecksumMode : uint8_t {
+  NONE = 0,
+  DISCOVER,
+  SUM8_BODY,
+  XOR8_BODY,
+  NEGSUM8_BODY,
+  SUM8_ALL,
+  XOR8_ALL,
+  NEGSUM8_ALL,
+};
+
 class PhaseConfig;
 class CTClampConfig;
 
@@ -62,6 +73,7 @@ class EmporiaVueComponent : public PollingComponent, public i2c::I2CDevice {
   void set_i2c_error_sensor(sensor::Sensor *s) { this->i2c_error_sensor_ = s; }
   void set_malformed_reading_sensor(sensor::Sensor *s) { this->malformed_reading_sensor_ = s; }
   void set_missed_reading_sensor(sensor::Sensor *s) { this->missed_reading_sensor_ = s; }
+  void set_checksum_mode(ChecksumMode mode) { this->checksum_mode_ = mode; }
 
   void setup() override;
   void update() override;
@@ -71,6 +83,10 @@ class EmporiaVueComponent : public PollingComponent, public i2c::I2CDevice {
  protected:
   AcTiming average_timing_(const SensorReading &sensor_reading);
   void bump_counter_(uint32_t &counter, sensor::Sensor *sensor);
+  bool check_checksum_(const SensorReading &reading);
+
+  ChecksumMode checksum_mode_{ChecksumMode::NONE};
+  uint8_t checksum_discover_logged_{0};
 
   uint32_t i2c_errors_{0};
   uint32_t malformed_readings_{0};

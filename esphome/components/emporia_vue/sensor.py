@@ -42,6 +42,7 @@ CONF_FREQUENCY_SAMPLES = "frequency_samples"
 CONF_I2C_ERRORS = "i2c_errors"
 CONF_MALFORMED_READINGS = "malformed_readings"
 CONF_MISSED_READINGS = "missed_readings"
+CONF_CHECKSUM = "checksum"
 
 CONF_ON_UPDATE = "on_update"
 
@@ -68,6 +69,19 @@ EmporiaVueUpdateTrigger = emporia_vue_ns.class_(
     "EmporiaVueUpdateTrigger", automation.Trigger.template()
 )
 
+
+ChecksumMode = emporia_vue_ns.enum("ChecksumMode", is_class=True)
+CHECKSUM_MODES = {
+    "none": ChecksumMode.NONE,
+    # log candidate checksums for the first packets so the algorithm can be found
+    "discover": ChecksumMode.DISCOVER,
+    "sum8_body": ChecksumMode.SUM8_BODY,
+    "xor8_body": ChecksumMode.XOR8_BODY,
+    "negsum8_body": ChecksumMode.NEGSUM8_BODY,
+    "sum8_all": ChecksumMode.SUM8_ALL,
+    "xor8_all": ChecksumMode.XOR8_ALL,
+    "negsum8_all": ChecksumMode.NEGSUM8_ALL,
+}
 
 PhaseInputWire = emporia_vue_ns.enum("PhaseInputWire")
 PHASE_INPUT = {
@@ -204,6 +218,8 @@ CONFIG_SCHEMA = cv.All(
             # Average the raw period / phase-angle counts over this many readings
             # (each ~240 ms) before converting to Hz / degrees. 1 = no averaging.
             cv.Optional(CONF_FREQUENCY_SAMPLES, default=1): cv.int_range(min=1, max=250),
+            # Packet checksum handling; the MCU's algorithm is not yet confirmed.
+            cv.Optional(CONF_CHECKSUM, default="none"): cv.enum(CHECKSUM_MODES, lower=True),
             # Diagnostic counters (since boot)
             cv.Optional(CONF_I2C_ERRORS): DIAGNOSTIC_COUNTER_SCHEMA,
             cv.Optional(CONF_MALFORMED_READINGS): DIAGNOSTIC_COUNTER_SCHEMA,
@@ -234,6 +250,7 @@ async def to_code(config):
         cg.add_define("EMPORIA_VUE_VARIANT_VUE2")
 
     cg.add(var.set_timing_samples(config[CONF_FREQUENCY_SAMPLES]))
+    cg.add(var.set_checksum_mode(config[CONF_CHECKSUM]))
 
     if CONF_I2C_ERRORS in config:
         s = await sensor.new_sensor(config[CONF_I2C_ERRORS])

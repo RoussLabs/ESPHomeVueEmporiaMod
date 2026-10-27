@@ -1,5 +1,6 @@
 #include "emporia_vue.h"
 #include <cmath>
+#include <cstddef>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -23,6 +24,7 @@ void EmporiaVueComponent::dump_config() {
 #endif
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Frequency samples: %u", this->timing_samples_);
+  ESP_LOGCONFIG(TAG, "  Checksum mode: %d", static_cast<int>(this->checksum_mode_));
   LOG_SENSOR("  ", "I2C Errors", this->i2c_error_sensor_);
   LOG_SENSOR("  ", "Malformed Readings", this->malformed_reading_sensor_);
   LOG_SENSOR("  ", "Missed Readings", this->missed_reading_sensor_);
@@ -81,6 +83,11 @@ void EmporiaVueComponent::update() {
     return;
   }
 
+  if (!this->check_checksum_(sensor_reading)) {
+    this->bump_counter_(this->malformed_readings_, this->malformed_reading_sensor_);
+    return;
+  }
+
   ESP_LOGV(TAG, "Received sensor reading with sequence #%d", sensor_reading.sequence_num);
 
   if (this->have_last_sequence_num_) {
@@ -121,6 +128,73 @@ void EmporiaVueComponent::setup() {
     this->malformed_reading_sensor_->publish_state(0);
   if (this->missed_reading_sensor_)
     this->missed_reading_sensor_->publish_state(0);
+}
+
+// The header carries a checksum byte whose algorithm is not publicly known.
+// Candidates are computed over the "body" (everything after the 4-byte header)
+// and over "all" (the whole packet except the checksum byte itself).
+struct ChecksumCandidates {
+  uint8_t sum_body, xor_body, negsum_body;
+  uint8_t sum_all, xor_all, negsum_all;
+};
+
+static ChecksumCandidates compute_checksum_candidates(const SensorReading &reading) {
+  const auto *bytes = reinterpret_cast<const uint8_t *>(&reading);
+  const size_t len = sizeof(SensorReading);
+  const size_t checksum_offset = offsetof(SensorReading, checksum);
+  const size_t body_start = offsetof(SensorReading, power);
+
+  uint8_t sum_body = 0, xor_body = 0, sum_all = 0, xor_all = 0;
+  for (size_t i = 0; i < len; i++) {
+    if (i == checksum_offset)
+      continue;
+    sum_all += bytes[i];
+    xor_all ^= bytes[i];
+    if (i >= body_start) {
+      sum_body += bytes[i];
+      xor_body ^= bytes[i];
+    }
+  }
+  return ChecksumCandidates{sum_body, xor_body, static_cast<uint8_t>(-sum_body),
+                            sum_all,  xor_all,  static_cast<uint8_t>(-sum_all)};
+}
+
+bool EmporiaVueComponent::check_checksum_(const SensorReading &reading) {
+  if (this->checksum_mode_ == ChecksumMode::NONE)
+    return true;
+
+  ChecksumCandidates c = compute_checksum_candidates(reading);
+
+  if (this->checksum_mode_ == ChecksumMode::DISCOVER) {
+    // Log the first few packets so the algorithm can be identified from real data,
+    // then stay quiet.
+    if (this->checksum_discover_logged_ < 10) {
+      this->checksum_discover_logged_++;
+      ESP_LOGI(TAG,
+               "checksum=0x%02X unknown=0x%02X seq=%u | body: sum8=0x%02X xor8=0x%02X negsum8=0x%02X | "
+               "all: sum8=0x%02X xor8=0x%02X negsum8=0x%02X",
+               reading.checksum, reading.unknown, reading.sequence_num, c.sum_body, c.xor_body, c.negsum_body,
+               c.sum_all, c.xor_all, c.negsum_all);
+    }
+    return true;
+  }
+
+  uint8_t expected;
+  switch (this->checksum_mode_) {
+    case ChecksumMode::SUM8_BODY:    expected = c.sum_body;    break;
+    case ChecksumMode::XOR8_BODY:    expected = c.xor_body;    break;
+    case ChecksumMode::NEGSUM8_BODY: expected = c.negsum_body; break;
+    case ChecksumMode::SUM8_ALL:     expected = c.sum_all;     break;
+    case ChecksumMode::XOR8_ALL:     expected = c.xor_all;     break;
+    case ChecksumMode::NEGSUM8_ALL:  expected = c.negsum_all;  break;
+    default:                         return true;
+  }
+  if (expected != reading.checksum) {
+    ESP_LOGW(TAG, "Checksum mismatch: packet 0x%02X, computed 0x%02X; discarding reading", reading.checksum,
+             expected);
+    return false;
+  }
+  return true;
 }
 
 void EmporiaVueComponent::bump_counter_(uint32_t &counter, sensor::Sensor *sensor) {
