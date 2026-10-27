@@ -217,6 +217,7 @@ For a pure 240 V load (water heater, baseboard heat, EVSE) measured by a single 
     virtual_phases:
       - id: leg_1_2
         combine: [phase_a, phase_b]
+        angle: 180            # 180 = NA split-phase (240 V); 120 = two legs of a wye (208 V)
         voltage: { name: "L1-L2 Voltage" }
     ct_clamps:
       - { phase_id: leg_1_2, input: "4", power: { name: "Water Heater Power" } }
@@ -224,8 +225,12 @@ For a pure 240 V load (water heater, baseboard heat, EVSE) measured by a single 
 
 Power is computed as P<sub>a</sub> − P<sub>b</sub> from the MCU's per-leg real-power columns, which is exact
 for any angle between the legs and replaces the old `multiply: 2` approximation. Voltage is |V<sub>a</sub> −
-V<sub>b</sub>| by the law of cosines using the measured phase angle, so a 120° (208 V) service needs no special
-configuration.
+V<sub>b</sub>| by the law of cosines using the configured `angle` (default 180, giving V<sub>a</sub> +
+V<sub>b</sub>).
+
+The MCU's own phase-angle measurement is deliberately not used here: on tested hardware it reports about 45°
+for two legs wired to the same phase (true value 0°), so the `phase_angle` sensor is best treated as relative,
+not absolute.
 
 Only use this for loads with **no neutral current**. A dryer or range with 120 V controls still needs one CT per
 leg, summed in a template sensor.

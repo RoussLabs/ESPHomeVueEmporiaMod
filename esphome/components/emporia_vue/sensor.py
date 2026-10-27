@@ -38,6 +38,7 @@ CONF_CT_CLAMPS = "ct_clamps"
 CONF_PHASES = "phases"
 CONF_VIRTUAL_PHASES = "virtual_phases"
 CONF_COMBINE = "combine"
+CONF_ANGLE = "angle"
 CONF_PHASE_ID = "phase_id"
 CONF_VARIANT = "variant"
 CONF_FREQUENCY_SAMPLES = "frequency_samples"
@@ -227,6 +228,10 @@ SCHEMA_VIRTUAL_PHASE = {
     # two ids from `phases`; a CT referencing this entry is treated as a
     # line-to-line load between them (NA 240 V split-phase, or 208 V)
     cv.Required(CONF_COMBINE): validate_combine,
+    # electrical angle between the two legs: 180 for NA split-phase (240 V),
+    # 120 for two legs of a three-phase wye (208 V). The MCU's measured angle
+    # is not used here; it reads ~45 deg for in-phase legs on tested hardware.
+    cv.Optional(CONF_ANGLE, default=180.0): cv.float_range(min=0.0, max=360.0),
     cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
         device_class=DEVICE_CLASS_VOLTAGE,
@@ -318,6 +323,7 @@ async def to_code(config):
         phase_a = await cg.get_variable(vp_config[CONF_COMBINE][0])
         phase_b = await cg.get_variable(vp_config[CONF_COMBINE][1])
         cg.add(vp_var.set_phases(phase_a, phase_b))
+        cg.add(vp_var.set_angle_deg(vp_config[CONF_ANGLE]))
         if CONF_VOLTAGE in vp_config:
             voltage_sensor = await sensor.new_sensor(vp_config[CONF_VOLTAGE])
             cg.add(vp_var.set_voltage_sensor(voltage_sensor))

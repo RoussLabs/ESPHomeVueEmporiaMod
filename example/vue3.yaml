@@ -135,6 +135,7 @@ sensor:
     virtual_phases:
       - id: leg_1_2
         combine: [phase_a, phase_b]
+        angle: 180                   # 180 = split-phase 240 V, 120 = 208 V from a wye
         voltage: { name: "${leg_1}-${leg_2} Voltage", filters: [*throttle_avg] }
 
     ct_clamps:

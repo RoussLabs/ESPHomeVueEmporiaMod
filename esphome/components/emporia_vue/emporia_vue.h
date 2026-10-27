@@ -174,17 +174,20 @@ class VirtualPhaseConfig : public PhaseBase {
   }
   const PhaseConfig *get_phase_a() const { return this->phase_a_; }
   const PhaseConfig *get_phase_b() const { return this->phase_b_; }
+  // Configured angle between the legs: 180 for split-phase, 120 for two legs of a wye.
+  void set_angle_deg(float angle) { this->angle_deg_ = angle; }
+  float get_angle_deg() const { return this->angle_deg_; }
 
   void update_from_reading(const SensorReading &sensor_reading, const AcTiming &timing) override;
-  // |V_a - V_b| by the law of cosines using the measured angle between the legs.
+  // |V_a - V_b| by the law of cosines using the configured angle between the legs.
   float get_calibrated_voltage(const SensorReading &sensor_reading) const override;
   // P = Re(V_ab * I*) = P_a - P_b, exact for any angle between the legs.
   float extract_calibrated_power(const ReadingPowerEntry &power_entry) const override;
-  float get_angle_deg() const;
 
  protected:
   PhaseConfig *phase_a_{nullptr};
   PhaseConfig *phase_b_{nullptr};
+  float angle_deg_{180.0f};
 };
 
 enum CTInputPort : uint8_t {

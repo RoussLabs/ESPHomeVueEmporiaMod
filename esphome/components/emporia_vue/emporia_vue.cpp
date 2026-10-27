@@ -54,6 +54,7 @@ void EmporiaVueComponent::dump_config() {
 
   for (auto *vphase : this->virtual_phases_) {
     ESP_LOGCONFIG(TAG, "  Virtual Phase (line-to-line)");
+    ESP_LOGCONFIG(TAG, "    Angle: %.0f deg", vphase->get_angle_deg());
     LOG_SENSOR("    ", "Voltage", vphase->get_voltage_sensor());
   }
 
@@ -335,14 +336,6 @@ int32_t PhaseConfig::extract_power_for_phase(const ReadingPowerEntry &power_entr
 
 float PhaseConfig::extract_calibrated_power(const ReadingPowerEntry &power_entry) const {
   return this->extract_power_for_phase(power_entry) * this->calibration_;
-}
-
-float VirtualPhaseConfig::get_angle_deg() const {
-  float a = this->phase_a_->get_phase_angle_deg();
-  float b = this->phase_b_->get_phase_angle_deg();
-  if (std::isnan(a) || std::isnan(b))
-    return 180.0f;  // no timing yet: assume split-phase
-  return b - a;
 }
 
 float VirtualPhaseConfig::get_calibrated_voltage(const SensorReading &sensor_reading) const {
