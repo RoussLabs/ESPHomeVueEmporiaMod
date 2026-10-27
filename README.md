@@ -101,6 +101,7 @@ esptool --port /dev/ttyUSB0 write-flash 0 vue-orig-backup.bin
 external_components:
   - source: github://RoussLabs/ESPHomeVueEmporiaMod@main
     components: [emporia_vue]
+    # refresh: 0s   # while testing: re-fetch the component on every build (default is 1 day)
 ```
 
 Every upstream option still works unchanged. The additions below are all optional and default to upstream behaviour.

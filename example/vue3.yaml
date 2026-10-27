@@ -18,6 +18,7 @@ esp32:
 external_components:
   - source: github://RoussLabs/ESPHomeVueEmporiaMod@main
     components: [emporia_vue]
+    # refresh: 0s   # while testing: re-fetch the component on every build (default is 1 day)
 
 # API + OTA encryption; assign a unique key from the ESPHome Device Builder.
 api:
