@@ -16,7 +16,7 @@ esp32:
     version: recommended
 
 external_components:
-  - source: github://RoussLabs/ESPHomeVueEmporiaMod@rousslabs
+  - source: github://RoussLabs/ESPHomeVueEmporiaMod@main
     components: [emporia_vue]
 
 # API + OTA encryption; assign a unique key from the ESPHome Device Builder.

@@ -8,8 +8,9 @@ A fork of [emporia-vue-local/esphome](https://github.com/emporia-vue-local/espho
 component that runs the Emporia Vue 2 / Vue 3 energy monitor fully locally with Home Assistant.
 All credit for the hardware reverse engineering and the base component goes to that project.
 
-This fork adds features on top of upstream `dev`, each as its own commit on the `rousslabs` branch so they can be
-offered upstream one at a time. The `dev` branch here is an untouched mirror of upstream.
+This is a standalone repository, not a GitHub fork: its first commit is a snapshot of upstream `dev` at
+[`79e27473`](https://github.com/emporia-vue-local/esphome/commit/79e2747371b70370b96ef919f7c1e556f461344a)
+(2026-04-18), and every change since is its own commit so it can be offered upstream one at a time.
 
 Install instructions, flashing and panel wiring are unchanged: see the
 [upstream docs site](https://emporia-vue-local.github.io/docs/tutorial/intro).
@@ -18,7 +19,7 @@ Install instructions, flashing and panel wiring are unchanged: see the
 
 ```yaml
 external_components:
-  - source: github://RoussLabs/ESPHomeVueEmporiaMod@rousslabs
+  - source: github://RoussLabs/ESPHomeVueEmporiaMod@main
     components: [emporia_vue]
 ```
 
