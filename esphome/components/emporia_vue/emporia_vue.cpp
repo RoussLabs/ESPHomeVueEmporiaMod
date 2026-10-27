@@ -1,6 +1,7 @@
 #include "emporia_vue.h"
 #include <cmath>
 #include <cstddef>
+#include <algorithm>
 #include <cstdio>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -196,6 +197,16 @@ void EmporiaVueComponent::log_raw_ports_(const SensorReading &reading) {
 
   ESP_LOGI(TAG, "raw voltage: %u %u %u  period: %u  degrees: %u %u", reading.voltage[0], reading.voltage[1],
            reading.voltage[2], reading.frequency, reading.degrees[0], reading.degrees[1]);
+
+  // Whole packet as hex, 71 bytes per line, for offline checksum analysis.
+  const auto *bytes = reinterpret_cast<const uint8_t *>(&reading);
+  char hbuf[71 * 2 + 1];
+  for (size_t off = 0; off < sizeof(SensorReading); off += 71) {
+    size_t n = std::min<size_t>(71, sizeof(SensorReading) - off);
+    for (size_t i = 0; i < n; i++)
+      snprintf(hbuf + i * 2, 3, "%02X", bytes[off + i]);
+    ESP_LOGI(TAG, "pkt[%03u]: %s", (unsigned) off, hbuf);
+  }
 }
 
 bool EmporiaVueComponent::check_checksum_(const SensorReading &reading) {
