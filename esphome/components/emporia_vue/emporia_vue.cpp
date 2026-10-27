@@ -86,8 +86,10 @@ void EmporiaVueComponent::update() {
   }
   this->have_last_sequence_num_ = true;
 
+  AcTiming timing = this->average_timing_(sensor_reading);
+
   for (auto *phase : this->phases_) {
-    phase->update_from_reading(sensor_reading);
+    phase->update_from_reading(sensor_reading, timing);
   }
   for (auto *ct_clamp : this->ct_clamps_) {
     ct_clamp->update_from_reading(sensor_reading);
@@ -102,6 +104,39 @@ void EmporiaVueComponent::add_on_update_callback(std::function<void()> &&callbac
   this->callback_.add(std::move(callback));
 }
 
+AcTiming EmporiaVueComponent::average_timing_(const SensorReading &sensor_reading) {
+  // The period and phase-angle fields are integer counts with ~0.18 Hz / ~1 degree
+  // resolution per reading. Averaging the raw counts over several readings before
+  // converting recovers useful resolution; with frequency_samples: 1 this is a
+  // pass-through of the current reading.
+  size_t n = this->timing_samples_;
+  if (n <= 1) {
+    return AcTiming{static_cast<float>(sensor_reading.frequency),
+                    {static_cast<float>(sensor_reading.degrees[0]), static_cast<float>(sensor_reading.degrees[1])}};
+  }
+
+  if (this->timing_history_.size() != n) {
+    this->timing_history_.assign(n, RawTiming{0, {0, 0}});
+    this->timing_index_ = 0;
+    this->timing_filled_ = 0;
+  }
+
+  this->timing_history_[this->timing_index_] = RawTiming{sensor_reading.frequency,
+                                                         {sensor_reading.degrees[0], sensor_reading.degrees[1]}};
+  this->timing_index_ = (this->timing_index_ + 1) % n;
+  if (this->timing_filled_ < n)
+    this->timing_filled_++;
+
+  uint32_t period_sum = 0, deg0_sum = 0, deg1_sum = 0;
+  for (size_t i = 0; i < this->timing_filled_; i++) {
+    period_sum += this->timing_history_[i].period;
+    deg0_sum += this->timing_history_[i].degrees[0];
+    deg1_sum += this->timing_history_[i].degrees[1];
+  }
+  float count = static_cast<float>(this->timing_filled_);
+  return AcTiming{period_sum / count, {deg0_sum / count, deg1_sum / count}};
+}
+
 static inline bool is_mains_port(CTInputPort port) {
   return port == CTInputPort::A || port == CTInputPort::B || port == CTInputPort::C;
 }
@@ -110,23 +145,24 @@ float PhaseConfig::get_calibrated_voltage(const SensorReading &sensor_reading) c
   return sensor_reading.voltage[this->input_wire_] * this->calibration_;
 }
 
-void PhaseConfig::update_from_reading(const SensorReading &sensor_reading) {
+void PhaseConfig::update_from_reading(const SensorReading &sensor_reading, const AcTiming &timing) {
   if (this->voltage_sensor_) {
     this->voltage_sensor_->publish_state(this->get_calibrated_voltage(sensor_reading));
   }
 
-  uint16_t raw_frequency = sensor_reading.frequency;
   // validation that these sensors are allowed on this phase is done in the codegen stage
   if (this->frequency_sensor_) {
     // see https://github.com/emporia-vue-local/esphome/pull/88 for constant explanation
-    float frequency = EMPORIA_VUE_FREQUENCY_CONSTANT / static_cast<float>(raw_frequency);
+    float frequency = timing.period > 0.0f ? EMPORIA_VUE_FREQUENCY_CONSTANT / timing.period : NAN;
     this->frequency_sensor_->publish_state(frequency);
   }
-  if (this->phase_angle_sensor_) {
-    uint16_t raw_phase_angle = sensor_reading.degrees[((uint8_t) this->input_wire_) - 1];
-    float phase_angle = ((float) raw_phase_angle) * 360.0f / ((float) raw_frequency);
-    // this is truncated to a uint16_t on the vue 2
-    this->phase_angle_sensor_->publish_state(phase_angle);
+  if (this->input_wire_ != PhaseInputWire::BLACK) {
+    // angle relative to the black wire; the raw count is in the same units as the period
+    float raw_phase_angle = timing.degrees[((uint8_t) this->input_wire_) - 1];
+    this->phase_angle_deg_ = timing.period > 0.0f ? raw_phase_angle * 360.0f / timing.period : NAN;
+    if (this->phase_angle_sensor_) {
+      this->phase_angle_sensor_->publish_state(this->phase_angle_deg_);
+    }
   }
 }
 

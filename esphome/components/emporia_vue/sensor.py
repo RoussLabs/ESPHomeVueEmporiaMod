@@ -36,6 +36,7 @@ CONF_CT_CLAMPS = "ct_clamps"
 CONF_PHASES = "phases"
 CONF_PHASE_ID = "phase_id"
 CONF_VARIANT = "variant"
+CONF_FREQUENCY_SAMPLES = "frequency_samples"
 
 CONF_ON_UPDATE = "on_update"
 
@@ -189,6 +190,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_PHASES): validate_phases,
             cv.Required(CONF_CT_CLAMPS): cv.ensure_list(SCHEMA_CT_CLAMP),
             cv.Optional(CONF_VARIANT, default="vue2"): cv.one_of("vue2", "vue3", lower=True),
+            # Average the raw period / phase-angle counts over this many readings
+            # (each ~240 ms) before converting to Hz / degrees. 1 = no averaging.
+            cv.Optional(CONF_FREQUENCY_SAMPLES, default=1): cv.int_range(min=1, max=250),
             cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -213,6 +217,8 @@ async def to_code(config):
         cg.add_define("EMPORIA_VUE_VARIANT_VUE3")
     else:
         cg.add_define("EMPORIA_VUE_VARIANT_VUE2")
+
+    cg.add(var.set_timing_samples(config[CONF_FREQUENCY_SAMPLES]))
 
     phases = []
     for phase_config in config[CONF_PHASES]:

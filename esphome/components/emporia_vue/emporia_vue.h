@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <cmath>
 #include <utility>
 #include <vector>
 
@@ -35,6 +36,17 @@ struct __attribute__((__packed__)) SensorReading {
   uint16_t end;
 };
 
+// Period / phase-angle counts, optionally averaged over several readings.
+struct AcTiming {
+  float period;
+  float degrees[2];
+};
+
+struct RawTiming {
+  uint16_t period;
+  uint16_t degrees[2];
+};
+
 class PhaseConfig;
 class CTClampConfig;
 
@@ -46,17 +58,25 @@ class EmporiaVueComponent : public PollingComponent, public i2c::I2CDevice {
 
   void set_phases(std::vector<PhaseConfig *> phases) { this->phases_ = std::move(phases); }
   void set_ct_clamps(std::vector<CTClampConfig *> ct_clamps) { this->ct_clamps_ = std::move(ct_clamps); }
+  void set_timing_samples(uint8_t samples) { this->timing_samples_ = samples; }
 
   void update() override;
 
   void add_on_update_callback(std::function<void()> &&callback);
 
  protected:
+  AcTiming average_timing_(const SensorReading &sensor_reading);
+
   uint8_t last_sequence_num_ = 0;
   bool have_last_sequence_num_ = false;
   std::vector<PhaseConfig *> phases_;
   std::vector<CTClampConfig *> ct_clamps_;
   CallbackManager<void()> callback_;
+
+  uint8_t timing_samples_{1};
+  std::vector<RawTiming> timing_history_;
+  size_t timing_index_{0};
+  size_t timing_filled_{0};
 };
 
 enum PhaseInputWire : uint8_t {
@@ -78,14 +98,17 @@ class PhaseConfig {
   void set_phase_angle_sensor(sensor::Sensor *phase_angle_sensor) { this->phase_angle_sensor_ = phase_angle_sensor; }
   sensor::Sensor *get_phase_angle_sensor() const { return this->phase_angle_sensor_; }
 
-  void update_from_reading(const SensorReading &sensor_reading);
+  void update_from_reading(const SensorReading &sensor_reading, const AcTiming &timing);
 
   float get_calibrated_voltage(const SensorReading &sensor_reading) const;
   int32_t extract_power_for_phase(const ReadingPowerEntry &power_entry);
+  // Last computed angle relative to the BLACK wire (NaN for BLACK itself).
+  float get_phase_angle_deg() const { return this->phase_angle_deg_; }
 
  protected:
   PhaseInputWire input_wire_;
   float calibration_;
+  float phase_angle_deg_{NAN};
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *frequency_sensor_{nullptr};
   sensor::Sensor *phase_angle_sensor_{nullptr};
