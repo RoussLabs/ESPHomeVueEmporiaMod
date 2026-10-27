@@ -59,13 +59,25 @@ class EmporiaVueComponent : public PollingComponent, public i2c::I2CDevice {
   void set_phases(std::vector<PhaseConfig *> phases) { this->phases_ = std::move(phases); }
   void set_ct_clamps(std::vector<CTClampConfig *> ct_clamps) { this->ct_clamps_ = std::move(ct_clamps); }
   void set_timing_samples(uint8_t samples) { this->timing_samples_ = samples; }
+  void set_i2c_error_sensor(sensor::Sensor *s) { this->i2c_error_sensor_ = s; }
+  void set_malformed_reading_sensor(sensor::Sensor *s) { this->malformed_reading_sensor_ = s; }
+  void set_missed_reading_sensor(sensor::Sensor *s) { this->missed_reading_sensor_ = s; }
 
+  void setup() override;
   void update() override;
 
   void add_on_update_callback(std::function<void()> &&callback);
 
  protected:
   AcTiming average_timing_(const SensorReading &sensor_reading);
+  void bump_counter_(uint32_t &counter, sensor::Sensor *sensor);
+
+  uint32_t i2c_errors_{0};
+  uint32_t malformed_readings_{0};
+  uint32_t missed_readings_{0};
+  sensor::Sensor *i2c_error_sensor_{nullptr};
+  sensor::Sensor *malformed_reading_sensor_{nullptr};
+  sensor::Sensor *missed_reading_sensor_{nullptr};
 
   uint8_t last_sequence_num_ = 0;
   bool have_last_sequence_num_ = false;

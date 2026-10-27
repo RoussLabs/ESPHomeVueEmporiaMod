@@ -22,7 +22,9 @@ from esphome.const import (
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_VOLTAGE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_VOLT_AMPS,
     UNIT_VOLT_AMPS_REACTIVE,
@@ -37,8 +39,17 @@ CONF_PHASES = "phases"
 CONF_PHASE_ID = "phase_id"
 CONF_VARIANT = "variant"
 CONF_FREQUENCY_SAMPLES = "frequency_samples"
+CONF_I2C_ERRORS = "i2c_errors"
+CONF_MALFORMED_READINGS = "malformed_readings"
+CONF_MISSED_READINGS = "missed_readings"
 
 CONF_ON_UPDATE = "on_update"
+
+DIAGNOSTIC_COUNTER_SCHEMA = sensor.sensor_schema(
+    state_class=STATE_CLASS_TOTAL_INCREASING,
+    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    accuracy_decimals=0,
+)
 
 CODEOWNERS = ["@flaviut", "@Maelstrom96", "@krconv"]
 ESP_PLATFORMS = ["esp-idf"]
@@ -193,6 +204,10 @@ CONFIG_SCHEMA = cv.All(
             # Average the raw period / phase-angle counts over this many readings
             # (each ~240 ms) before converting to Hz / degrees. 1 = no averaging.
             cv.Optional(CONF_FREQUENCY_SAMPLES, default=1): cv.int_range(min=1, max=250),
+            # Diagnostic counters (since boot)
+            cv.Optional(CONF_I2C_ERRORS): DIAGNOSTIC_COUNTER_SCHEMA,
+            cv.Optional(CONF_MALFORMED_READINGS): DIAGNOSTIC_COUNTER_SCHEMA,
+            cv.Optional(CONF_MISSED_READINGS): DIAGNOSTIC_COUNTER_SCHEMA,
             cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -219,6 +234,16 @@ async def to_code(config):
         cg.add_define("EMPORIA_VUE_VARIANT_VUE2")
 
     cg.add(var.set_timing_samples(config[CONF_FREQUENCY_SAMPLES]))
+
+    if CONF_I2C_ERRORS in config:
+        s = await sensor.new_sensor(config[CONF_I2C_ERRORS])
+        cg.add(var.set_i2c_error_sensor(s))
+    if CONF_MALFORMED_READINGS in config:
+        s = await sensor.new_sensor(config[CONF_MALFORMED_READINGS])
+        cg.add(var.set_malformed_reading_sensor(s))
+    if CONF_MISSED_READINGS in config:
+        s = await sensor.new_sensor(config[CONF_MISSED_READINGS])
+        cg.add(var.set_missed_reading_sensor(s))
 
     phases = []
     for phase_config in config[CONF_PHASES]:

@@ -22,6 +22,10 @@ void EmporiaVueComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Variant: Vue 2");
 #endif
   LOG_I2C_DEVICE(this);
+  ESP_LOGCONFIG(TAG, "  Frequency samples: %u", this->timing_samples_);
+  LOG_SENSOR("  ", "I2C Errors", this->i2c_error_sensor_);
+  LOG_SENSOR("  ", "Malformed Readings", this->malformed_reading_sensor_);
+  LOG_SENSOR("  ", "Missed Readings", this->missed_reading_sensor_);
 
   for (auto *phase : this->phases_) {
     std::string wire;
@@ -61,12 +65,14 @@ void EmporiaVueComponent::update() {
 
   if (err != i2c::ErrorCode::ERROR_OK) {
     ESP_LOGE(TAG, "Failed to read from sensor due to I2C error %d", err);
+    this->bump_counter_(this->i2c_errors_, this->i2c_error_sensor_);
     return;
   }
 
   if (sensor_reading.end != 0) {
     ESP_LOGE(TAG, "Failed to read from sensor due to a malformed reading, should end in null bytes but is %d",
              sensor_reading.end);
+    this->bump_counter_(this->malformed_readings_, this->malformed_reading_sensor_);
     return;
   }
 
@@ -82,6 +88,9 @@ void EmporiaVueComponent::update() {
     uint8_t gap = static_cast<uint8_t>(sensor_reading.sequence_num - this->last_sequence_num_ - 1);
     if (gap != 0) {
       ESP_LOGW(TAG, "Detected %u missing reading(s), data may not be accurate!", gap);
+      this->missed_readings_ += gap;
+      if (this->missed_reading_sensor_)
+        this->missed_reading_sensor_->publish_state(this->missed_readings_);
     }
   }
   this->have_last_sequence_num_ = true;
@@ -102,6 +111,22 @@ void EmporiaVueComponent::update() {
 
 void EmporiaVueComponent::add_on_update_callback(std::function<void()> &&callback) {
   this->callback_.add(std::move(callback));
+}
+
+void EmporiaVueComponent::setup() {
+  // Publish zero so the diagnostic entities show a value before the first fault.
+  if (this->i2c_error_sensor_)
+    this->i2c_error_sensor_->publish_state(0);
+  if (this->malformed_reading_sensor_)
+    this->malformed_reading_sensor_->publish_state(0);
+  if (this->missed_reading_sensor_)
+    this->missed_reading_sensor_->publish_state(0);
+}
+
+void EmporiaVueComponent::bump_counter_(uint32_t &counter, sensor::Sensor *sensor) {
+  counter++;
+  if (sensor)
+    sensor->publish_state(counter);
 }
 
 AcTiming EmporiaVueComponent::average_timing_(const SensorReading &sensor_reading) {
