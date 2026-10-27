@@ -17,7 +17,7 @@ class EmporiaVueUpdateTrigger : public Trigger<> {
   }
 };
 
-}  // namespace statistics
+}  // namespace emporia_vue
 }  // namespace esphome
 
 #endif // ifdef USE_ESP32
