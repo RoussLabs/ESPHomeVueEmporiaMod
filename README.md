@@ -1,8 +1,8 @@
-> ⚠️ **Please Note: This is currently a work in progress**
-> Directed and edited by RoussLabs; grunt work by robots.
-> Nothing here is anything I wouldn't read or reference myself.
-
 # ESPHome Emporia Vue — RoussLabs mod
+
+> ⚠️ **Please Note: This is currently a work in progress**\
+> Directed and edited by RoussLabs; grunt work by robots.\
+> Nothing here is anything I wouldn't read or reference myself.
 
 A fork of [emporia-vue-local/esphome](https://github.com/emporia-vue-local/esphome), the unofficial ESPHome
 component that runs the Emporia Vue 2 / Vue 3 energy monitor fully locally with Home Assistant.
