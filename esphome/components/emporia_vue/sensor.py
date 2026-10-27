@@ -12,12 +12,20 @@ from esphome.const import (
     CONF_VOLTAGE,
     CONF_FREQUENCY,
     CONF_PHASE_ANGLE,
+    CONF_APPARENT_POWER,
+    CONF_POWER_FACTOR,
+    CONF_REACTIVE_POWER,
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_POWER,
+    DEVICE_CLASS_POWER_FACTOR,
+    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
+    UNIT_VOLT_AMPS,
+    UNIT_VOLT_AMPS_REACTIVE,
     UNIT_WATT,
     UNIT_VOLT,
     UNIT_HERTZ,
@@ -95,6 +103,24 @@ SCHEMA_CT_CLAMP = {
     cv.Optional(CONF_CURRENT): sensor.sensor_schema(
         unit_of_measurement=UNIT_AMPERE,
         device_class=DEVICE_CLASS_CURRENT,
+        state_class=STATE_CLASS_MEASUREMENT,
+        accuracy_decimals=2,
+    ),
+    # Derived from real power, RMS current and the phase's RMS voltage.
+    cv.Optional(CONF_APPARENT_POWER): sensor.sensor_schema(
+        unit_of_measurement=UNIT_VOLT_AMPS,
+        device_class=DEVICE_CLASS_APPARENT_POWER,
+        state_class=STATE_CLASS_MEASUREMENT,
+        accuracy_decimals=1,
+    ),
+    cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(
+        unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
+        device_class=DEVICE_CLASS_REACTIVE_POWER,
+        state_class=STATE_CLASS_MEASUREMENT,
+        accuracy_decimals=1,
+    ),
+    cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
+        device_class=DEVICE_CLASS_POWER_FACTOR,
         state_class=STATE_CLASS_MEASUREMENT,
         accuracy_decimals=2,
     ),
@@ -224,6 +250,18 @@ async def to_code(config):
         if CONF_CURRENT in ct_config:
             current_sensor = await sensor.new_sensor(ct_config[CONF_CURRENT])
             cg.add(ct_clamp_var.set_current_sensor(current_sensor))
+
+        if CONF_APPARENT_POWER in ct_config:
+            s = await sensor.new_sensor(ct_config[CONF_APPARENT_POWER])
+            cg.add(ct_clamp_var.set_apparent_power_sensor(s))
+
+        if CONF_REACTIVE_POWER in ct_config:
+            s = await sensor.new_sensor(ct_config[CONF_REACTIVE_POWER])
+            cg.add(ct_clamp_var.set_reactive_power_sensor(s))
+
+        if CONF_POWER_FACTOR in ct_config:
+            s = await sensor.new_sensor(ct_config[CONF_POWER_FACTOR])
+            cg.add(ct_clamp_var.set_power_factor_sensor(s))
 
         ct_clamps.append(ct_clamp_var)
     cg.add(var.set_ct_clamps(ct_clamps))

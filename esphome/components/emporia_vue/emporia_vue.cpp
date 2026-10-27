@@ -48,6 +48,9 @@ void EmporiaVueComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "    CT Port Index: %d", ct_clamp->get_input_port());
     LOG_SENSOR("    ", "Power", ct_clamp->get_power_sensor());
     LOG_SENSOR("    ", "Current", ct_clamp->get_current_sensor());
+    LOG_SENSOR("    ", "Apparent Power", ct_clamp->get_apparent_power_sensor());
+    LOG_SENSOR("    ", "Reactive Power", ct_clamp->get_reactive_power_sensor());
+    LOG_SENSOR("    ", "Power Factor", ct_clamp->get_power_factor_sensor());
   }
 }
 
@@ -103,10 +106,13 @@ static inline bool is_mains_port(CTInputPort port) {
   return port == CTInputPort::A || port == CTInputPort::B || port == CTInputPort::C;
 }
 
+float PhaseConfig::get_calibrated_voltage(const SensorReading &sensor_reading) const {
+  return sensor_reading.voltage[this->input_wire_] * this->calibration_;
+}
+
 void PhaseConfig::update_from_reading(const SensorReading &sensor_reading) {
   if (this->voltage_sensor_) {
-    float calibrated_voltage = sensor_reading.voltage[this->input_wire_] * this->calibration_;
-    this->voltage_sensor_->publish_state(calibrated_voltage);
+    this->voltage_sensor_->publish_state(this->get_calibrated_voltage(sensor_reading));
   }
 
   uint16_t raw_frequency = sensor_reading.frequency;
@@ -151,18 +157,50 @@ void CTClampConfig::update_from_reading(const SensorReading &sensor_reading) {
       this->power_sensor_->publish_state(NAN);
     if (this->current_sensor_)
       this->current_sensor_->publish_state(NAN);
+    if (this->apparent_power_sensor_)
+      this->apparent_power_sensor_->publish_state(NAN);
+    if (this->reactive_power_sensor_)
+      this->reactive_power_sensor_->publish_state(NAN);
+    if (this->power_factor_sensor_)
+      this->power_factor_sensor_->publish_state(NAN);
     return;
   }
   this->warned_disconnected_ = false;
 
-  if (this->power_sensor_) {
+  bool want_derived = this->apparent_power_sensor_ || this->reactive_power_sensor_ || this->power_factor_sensor_;
+
+  float power = NAN;
+  if (this->power_sensor_ || want_derived) {
     ReadingPowerEntry power_entry = sensor_reading.power[this->input_port_];
     int32_t raw_power = this->phase_->extract_power_for_phase(power_entry);
-    float calibrated_power = this->get_calibrated_power(raw_power);
-    this->power_sensor_->publish_state(calibrated_power);
+    power = this->get_calibrated_power(raw_power);
+    if (this->power_sensor_)
+      this->power_sensor_->publish_state(power);
   }
-  if (this->current_sensor_) {
-    this->current_sensor_->publish_state(this->get_calibrated_current(raw_current));
+
+  float current = NAN;
+  if (this->current_sensor_ || want_derived) {
+    current = this->get_calibrated_current(raw_current);
+    if (this->current_sensor_)
+      this->current_sensor_->publish_state(current);
+  }
+
+  if (want_derived) {
+    // The metering MCU gives real power (P) and true-RMS current (I); with the
+    // phase's RMS voltage (V) we derive apparent power S = V*I, reactive power
+    // Q = sqrt(S^2 - P^2) and true power factor PF = P/S.
+    float voltage = this->phase_->get_calibrated_voltage(sensor_reading);
+    float apparent = voltage * current;
+    if (this->apparent_power_sensor_)
+      this->apparent_power_sensor_->publish_state(apparent);
+    if (this->reactive_power_sensor_) {
+      float q2 = apparent * apparent - power * power;
+      this->reactive_power_sensor_->publish_state(q2 > 0.0f ? std::sqrt(q2) : 0.0f);
+    }
+    if (this->power_factor_sensor_) {
+      // Below ~1 VA the ratio is noise; report NaN so filters/graphs ignore it.
+      this->power_factor_sensor_->publish_state(apparent > 1.0f ? power / apparent : NAN);
+    }
   }
 }
 

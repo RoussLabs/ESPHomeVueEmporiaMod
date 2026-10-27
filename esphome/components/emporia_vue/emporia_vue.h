@@ -80,6 +80,7 @@ class PhaseConfig {
 
   void update_from_reading(const SensorReading &sensor_reading);
 
+  float get_calibrated_voltage(const SensorReading &sensor_reading) const;
   int32_t extract_power_for_phase(const ReadingPowerEntry &power_entry);
 
  protected:
@@ -134,6 +135,12 @@ class CTClampConfig : public sensor::Sensor {
   sensor::Sensor *get_power_sensor() const { return this->power_sensor_; }
   void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
   sensor::Sensor *get_current_sensor() const { return this->current_sensor_; }
+  void set_apparent_power_sensor(sensor::Sensor *s) { this->apparent_power_sensor_ = s; }
+  sensor::Sensor *get_apparent_power_sensor() const { return this->apparent_power_sensor_; }
+  void set_reactive_power_sensor(sensor::Sensor *s) { this->reactive_power_sensor_ = s; }
+  sensor::Sensor *get_reactive_power_sensor() const { return this->reactive_power_sensor_; }
+  void set_power_factor_sensor(sensor::Sensor *s) { this->power_factor_sensor_ = s; }
+  sensor::Sensor *get_power_factor_sensor() const { return this->power_factor_sensor_; }
 
   void update_from_reading(const SensorReading &sensor_reading);
   float get_calibrated_power(int32_t raw_power) const;
@@ -145,6 +152,9 @@ class CTClampConfig : public sensor::Sensor {
   float calibration_{1.0f};
   sensor::Sensor *power_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
+  sensor::Sensor *apparent_power_sensor_{nullptr};
+  sensor::Sensor *reactive_power_sensor_{nullptr};
+  sensor::Sensor *power_factor_sensor_{nullptr};
   bool warned_disconnected_{false};
 };
 
