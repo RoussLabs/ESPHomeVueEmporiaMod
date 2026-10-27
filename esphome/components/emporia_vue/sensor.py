@@ -36,6 +36,8 @@ from esphome.const import (
 
 CONF_CT_CLAMPS = "ct_clamps"
 CONF_PHASES = "phases"
+CONF_VIRTUAL_PHASES = "virtual_phases"
+CONF_COMBINE = "combine"
 CONF_PHASE_ID = "phase_id"
 CONF_VARIANT = "variant"
 CONF_FREQUENCY_SAMPLES = "frequency_samples"
@@ -61,7 +63,9 @@ emporia_vue_ns = cg.esphome_ns.namespace("emporia_vue")
 EmporiaVueComponent = emporia_vue_ns.class_(
     "EmporiaVueComponent", cg.PollingComponent, i2c.I2CDevice
 )
-PhaseConfig = emporia_vue_ns.class_("PhaseConfig")
+PhaseBase = emporia_vue_ns.class_("PhaseBase")
+PhaseConfig = emporia_vue_ns.class_("PhaseConfig", PhaseBase)
+VirtualPhaseConfig = emporia_vue_ns.class_("VirtualPhaseConfig", PhaseBase)
 CTClampConfig = emporia_vue_ns.class_("CTClampConfig")
 
 # Trigger for after statistics sensors are updated
@@ -115,7 +119,8 @@ CT_INPUT = {
 
 SCHEMA_CT_CLAMP = {
     cv.GenerateID(): cv.declare_id(CTClampConfig),
-    cv.Required(CONF_PHASE_ID): cv.use_id(PhaseConfig),
+    # a physical leg from `phases` or a line-to-line entry from `virtual_phases`
+    cv.Required(CONF_PHASE_ID): cv.use_id(PhaseBase),
     cv.Required(CONF_INPUT): cv.enum(CT_INPUT),
     # Per-clamp gain applied to both power and current. Use it to trim an
     # individual CT against a reference meter; 1.0 leaves the reading unchanged.
@@ -208,11 +213,35 @@ def validate_phases(val):
     return base_validated
 
 
+def validate_combine(val):
+    val = cv.ensure_list(cv.use_id(PhaseConfig))(val)
+    if len(val) != 2:
+        raise cv.Invalid("combine must list exactly two phase ids")
+    if val[0].id == val[1].id:
+        raise cv.Invalid("combine must reference two different phases")
+    return val
+
+
+SCHEMA_VIRTUAL_PHASE = {
+    cv.GenerateID(): cv.declare_id(VirtualPhaseConfig),
+    # two ids from `phases`; a CT referencing this entry is treated as a
+    # line-to-line load between them (NA 240 V split-phase, or 208 V)
+    cv.Required(CONF_COMBINE): validate_combine,
+    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
+        unit_of_measurement=UNIT_VOLT,
+        device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
+        accuracy_decimals=1,
+    ),
+}
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(EmporiaVueComponent),
             cv.Required(CONF_PHASES): validate_phases,
+            cv.Optional(CONF_VIRTUAL_PHASES, default=[]): cv.ensure_list(SCHEMA_VIRTUAL_PHASE),
             cv.Required(CONF_CT_CLAMPS): cv.ensure_list(SCHEMA_CT_CLAMP),
             cv.Optional(CONF_VARIANT, default="vue2"): cv.one_of("vue2", "vue3", lower=True),
             # Average the raw period / phase-angle counts over this many readings
@@ -282,6 +311,18 @@ async def to_code(config):
 
         phases.append(phase_var)
     cg.add(var.set_phases(phases))
+
+    virtual_phases = []
+    for vp_config in config[CONF_VIRTUAL_PHASES]:
+        vp_var = cg.new_Pvariable(vp_config[CONF_ID], VirtualPhaseConfig())
+        phase_a = await cg.get_variable(vp_config[CONF_COMBINE][0])
+        phase_b = await cg.get_variable(vp_config[CONF_COMBINE][1])
+        cg.add(vp_var.set_phases(phase_a, phase_b))
+        if CONF_VOLTAGE in vp_config:
+            voltage_sensor = await sensor.new_sensor(vp_config[CONF_VOLTAGE])
+            cg.add(vp_var.set_voltage_sensor(voltage_sensor))
+        virtual_phases.append(vp_var)
+    cg.add(var.set_virtual_phases(virtual_phases))
 
     ct_clamps = []
     for ct_config in config[CONF_CT_CLAMPS]:

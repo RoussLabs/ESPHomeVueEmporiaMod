@@ -46,12 +46,19 @@ void EmporiaVueComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "    Wire: %s", wire.c_str());
     ESP_LOGCONFIG(TAG, "    Calibration: %f", phase->get_calibration());
     LOG_SENSOR("    ", "Voltage", phase->get_voltage_sensor());
+    LOG_SENSOR("    ", "Frequency", phase->get_frequency_sensor());
+    LOG_SENSOR("    ", "Phase Angle", phase->get_phase_angle_sensor());
+  }
+
+  for (auto *vphase : this->virtual_phases_) {
+    ESP_LOGCONFIG(TAG, "  Virtual Phase (line-to-line)");
+    LOG_SENSOR("    ", "Voltage", vphase->get_voltage_sensor());
   }
 
   for (auto *ct_clamp : this->ct_clamps_) {
     ESP_LOGCONFIG(TAG, "  CT Clamp");
-    ESP_LOGCONFIG(TAG, "    Phase Calibration: %f", ct_clamp->get_phase()->get_calibration());
     ESP_LOGCONFIG(TAG, "    CT Port Index: %d", ct_clamp->get_input_port());
+    ESP_LOGCONFIG(TAG, "    Calibration: %f", ct_clamp->get_calibration());
     LOG_SENSOR("    ", "Power", ct_clamp->get_power_sensor());
     LOG_SENSOR("    ", "Current", ct_clamp->get_current_sensor());
     LOG_SENSOR("    ", "Apparent Power", ct_clamp->get_apparent_power_sensor());
@@ -106,6 +113,10 @@ void EmporiaVueComponent::update() {
 
   for (auto *phase : this->phases_) {
     phase->update_from_reading(sensor_reading, timing);
+  }
+  // after the physical legs, so their angles are current
+  for (auto *vphase : this->virtual_phases_) {
+    vphase->update_from_reading(sensor_reading, timing);
   }
   for (auto *ct_clamp : this->ct_clamps_) {
     ct_clamp->update_from_reading(sensor_reading);
@@ -265,7 +276,7 @@ void PhaseConfig::update_from_reading(const SensorReading &sensor_reading, const
   }
 }
 
-int32_t PhaseConfig::extract_power_for_phase(const ReadingPowerEntry &power_entry) {
+int32_t PhaseConfig::extract_power_for_phase(const ReadingPowerEntry &power_entry) const {
   switch (this->input_wire_) {
     case PhaseInputWire::BLACK:
       return power_entry.phase_black;
@@ -276,6 +287,42 @@ int32_t PhaseConfig::extract_power_for_phase(const ReadingPowerEntry &power_entr
     default:
       ESP_LOGE(TAG, "Unsupported phase input wire, this should never happen");
       return -1;
+  }
+}
+
+float PhaseConfig::extract_calibrated_power(const ReadingPowerEntry &power_entry) const {
+  return this->extract_power_for_phase(power_entry) * this->calibration_;
+}
+
+float VirtualPhaseConfig::get_angle_deg() const {
+  float a = this->phase_a_->get_phase_angle_deg();
+  float b = this->phase_b_->get_phase_angle_deg();
+  if (std::isnan(a) || std::isnan(b))
+    return 180.0f;  // no timing yet: assume split-phase
+  return b - a;
+}
+
+float VirtualPhaseConfig::get_calibrated_voltage(const SensorReading &sensor_reading) const {
+  float va = this->phase_a_->get_calibrated_voltage(sensor_reading);
+  float vb = this->phase_b_->get_calibrated_voltage(sensor_reading);
+  float theta = this->get_angle_deg() * static_cast<float>(M_PI) / 180.0f;
+  // |V_a - V_b| for two phasors separated by theta: 180° gives Va+Vb (240 V
+  // split-phase), 120° gives sqrt(3)*V (208 V from a wye).
+  float v2 = va * va + vb * vb - 2.0f * va * vb * std::cos(theta);
+  return v2 > 0.0f ? std::sqrt(v2) : 0.0f;
+}
+
+float VirtualPhaseConfig::extract_calibrated_power(const ReadingPowerEntry &power_entry) const {
+  // The MCU reports, for one CT current I, the real power against each leg's
+  // voltage: P_a = Re(V_a I*), P_b = Re(V_b I*). For a line-to-line load the
+  // voltage across it is V_a - V_b, so P = P_a - P_b with no angle assumption.
+  // (At exactly 180° P_b = -P_a and this reduces to the old 'multiply: 2'.)
+  return this->phase_a_->extract_calibrated_power(power_entry) - this->phase_b_->extract_calibrated_power(power_entry);
+}
+
+void VirtualPhaseConfig::update_from_reading(const SensorReading &sensor_reading, const AcTiming & /*timing*/) {
+  if (this->voltage_sensor_) {
+    this->voltage_sensor_->publish_state(this->get_calibrated_voltage(sensor_reading));
   }
 }
 
@@ -306,9 +353,7 @@ void CTClampConfig::update_from_reading(const SensorReading &sensor_reading) {
 
   float power = NAN;
   if (this->power_sensor_ || want_derived) {
-    ReadingPowerEntry power_entry = sensor_reading.power[this->input_port_];
-    int32_t raw_power = this->phase_->extract_power_for_phase(power_entry);
-    power = this->get_calibrated_power(raw_power);
+    power = this->get_calibrated_power(sensor_reading.power[this->input_port_]);
     if (this->power_sensor_)
       this->power_sensor_->publish_state(power);
   }
@@ -339,12 +384,9 @@ void CTClampConfig::update_from_reading(const SensorReading &sensor_reading) {
   }
 }
 
-float CTClampConfig::get_calibrated_power(int32_t raw_power) const {
-  float calibration = this->phase_->get_calibration();
-
+float CTClampConfig::get_calibrated_power(const ReadingPowerEntry &power_entry) const {
   float correction_factor = is_mains_port(this->input_port_) ? 5.5f : 22.0f;
-
-  return (raw_power * calibration * this->calibration_) / correction_factor;
+  return this->phase_->extract_calibrated_power(power_entry) * this->calibration_ / correction_factor;
 }
 
 float CTClampConfig::get_calibrated_current(uint16_t raw_current) const {
