@@ -86,9 +86,10 @@ class EmporiaVueComponent : public PollingComponent, public i2c::I2CDevice {
   AcTiming average_timing_(const SensorReading &sensor_reading);
   void bump_counter_(uint32_t &counter, sensor::Sensor *sensor);
   bool check_checksum_(const SensorReading &reading);
+  void log_raw_ports_(const SensorReading &reading);
 
   ChecksumMode checksum_mode_{ChecksumMode::CHECKSUM_MODE_NONE};
-  uint8_t checksum_discover_logged_{0};
+  uint32_t discover_counter_{0};
 
   uint32_t i2c_errors_{0};
   uint32_t malformed_readings_{0};

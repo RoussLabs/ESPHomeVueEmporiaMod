@@ -1,6 +1,7 @@
 #include "emporia_vue.h"
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -174,6 +175,29 @@ static ChecksumCandidates compute_checksum_candidates(const SensorReading &readi
                             sum_all,  xor_all,  static_cast<uint8_t>(-sum_all)};
 }
 
+// Raw per-port values, index order is the MCU's (Vue 3: 0=C 1=B 2=A, then 1..16).
+void EmporiaVueComponent::log_raw_ports_(const SensorReading &reading) {
+  char buf[19 * 7 + 1];
+  size_t pos = 0;
+  for (int i = 0; i < 19; i++)
+    pos += snprintf(buf + pos, sizeof(buf) - pos, "%s%04X", i ? " " : "", reading.current[i]);
+  ESP_LOGI(TAG, "raw current[0..18] hex: %s", buf);
+
+  pos = 0;
+  char pbuf[19 * 12 + 1];
+  for (int i = 0; i < 19; i++)
+    pos += snprintf(pbuf + pos, sizeof(pbuf) - pos, "%s%ld", i ? " " : "", (long) reading.power[i].phase_black);
+  ESP_LOGI(TAG, "raw power vs BLACK[0..18]: %s", pbuf);
+
+  pos = 0;
+  for (int i = 0; i < 19; i++)
+    pos += snprintf(pbuf + pos, sizeof(pbuf) - pos, "%s%ld", i ? " " : "", (long) reading.power[i].phase_red);
+  ESP_LOGI(TAG, "raw power vs RED[0..18]:   %s", pbuf);
+
+  ESP_LOGI(TAG, "raw voltage: %u %u %u  period: %u  degrees: %u %u", reading.voltage[0], reading.voltage[1],
+           reading.voltage[2], reading.frequency, reading.degrees[0], reading.degrees[1]);
+}
+
 bool EmporiaVueComponent::check_checksum_(const SensorReading &reading) {
   if (this->checksum_mode_ == ChecksumMode::CHECKSUM_MODE_NONE)
     return true;
@@ -181,14 +205,15 @@ bool EmporiaVueComponent::check_checksum_(const SensorReading &reading) {
   ChecksumCandidates c = compute_checksum_candidates(reading);
 
   if (this->checksum_mode_ == ChecksumMode::CHECKSUM_MODE_DISCOVER) {
-    // Log the first few packets so the algorithm can be identified, then stay quiet.
-    if (this->checksum_discover_logged_ < 10) {
-      this->checksum_discover_logged_++;
+    // Log the first 10 packets, then one every ~60 s, so a log attached at any time sees data.
+    uint32_t n = this->discover_counter_++;
+    if (n < 10 || n % 250 == 0) {
       ESP_LOGI(TAG,
                "checksum=0x%02X unknown=0x%02X seq=%u | body: sum8=0x%02X xor8=0x%02X negsum8=0x%02X | "
                "all: sum8=0x%02X xor8=0x%02X negsum8=0x%02X",
                reading.checksum, reading.unknown, reading.sequence_num, c.sum_body, c.xor_body, c.negsum_body,
                c.sum_all, c.xor_all, c.negsum_all);
+      this->log_raw_ports_(reading);
     }
     return true;
   }
