@@ -12,8 +12,88 @@ This is a standalone repository, not a GitHub fork: its first commit is a snapsh
 [`79e27473`](https://github.com/emporia-vue-local/esphome/commit/79e2747371b70370b96ef919f7c1e556f461344a)
 (2026-04-18), and every change since is its own commit so it can be offered upstream one at a time.
 
-Install instructions, flashing and panel wiring are unchanged: see the
-[upstream docs site](https://emporia-vue-local.github.io/docs/tutorial/intro).
+Panel wiring is unchanged from upstream: see the
+[upstream docs site](https://emporia-vue-local.github.io/docs/tutorial/intro). Flashing is summarised below.
+
+## Flashing the Vue with ESPHome
+
+> ⚠️ Never flash with the Vue connected to mains. Open the case only with every wire disconnected, and
+> close it before it goes back in the panel. Panel work is for a qualified person.
+
+Once ESPHome is on the device the Emporia app and cloud no longer work; the backup made in step 3 is the only way
+back.
+
+### 1. What you need
+
+- A USB-to-TTL serial adapter, 3.3 V logic (CP2102, CH340 or FT232). It must supply enough current for an ESP32
+  in bootloader mode; some cheap adapters can't, and the symptom is a chip that never enumerates.
+- [esptool](https://docs.espressif.com/projects/esptool/en/latest/esp32/installation.html) on a computer with a
+  USB port (`pip install esptool`).
+- A running ESPHome Device Builder (Home Assistant add-on or standalone).
+- For the **Vue 3**: a BDM frame with pogo pins, or jumper wires and a fine soldering iron. The pads are small and
+  lift easily; the BDM frame is the safer option and several people have lost boards soldering.
+- For the **Vue 2**: a 7-pin pogo clip or header pins soldered to the programming port.
+
+### 2. Connect the serial adapter
+
+**Vue 3**: remove the five screws on the back, loosen the SMA antenna nut, pry the halves apart. Five test pads
+on the board, left to right as labelled in the
+[upstream photo](https://emporia-vue-local.github.io/docs/tutorial/hardware-prep-v3): GND, 3.3 V, GND, TX, RX.
+The RX/TX silkscreen is from the ESP32's point of view, so connect **TX to the adapter's TX and RX to RX**
+(the reverse of the usual crossover). If it won't respond, swap them. Hold IO0 to ground (or use an adapter
+with DTR/RTS wired to IO0/EN) while applying power so the chip starts in bootloader mode. Apply **3.3 V** to the
+3.3 V pad last; 5 V on that pad destroys the board.
+
+**Vue 2**: the programming header is a proper 2.54 mm port; see the
+[upstream Vue 2 page](https://emporia-vue-local.github.io/docs/tutorial/hardware-prep-v2) for the pinout. It
+takes 5 V on the `VCC_5V0` pin.
+
+### 3. Back up the factory firmware
+
+Do this before anything else; it is the only way to restore the Emporia firmware. Replace the port with yours
+(`/dev/ttyUSB0`, `/dev/cu.usbserial-xxxx`, `COM5`):
+
+```sh
+esptool version                                   # confirms the install
+esptool --port /dev/ttyUSB0 read-flash 0 ALL vue-orig-backup.bin
+```
+
+The Vue 3 has 8 MB of flash, so the file will be 8,388,608 bytes. If the read stalls at the same percentage on
+Apple Silicon, use a different computer or add `--baud 115200`. Keep the file somewhere safe.
+
+### 4. First flash: a minimal ESPHome image over serial
+
+The first install is a placeholder; the real configuration is pushed over Wi-Fi afterwards.
+
+1. In the Device Builder, **New Device**, give it a name, choose **ESP32**, then **Install → Plug into this
+   computer** (or "the computer running ESPHome Device Builder" if the adapter is on that machine).
+2. The Vue should be in bootloader mode (step 2) when the install starts. Wait for it to finish and reboot.
+3. If the chip is not found: check TX/RX, check that IO0 was grounded at power-on, check the adapter's 3.3 V
+   supply, and retry at a lower baud rate.
+
+Serial alternative to the dashboard, from the folder holding your YAML:
+
+```sh
+esphome run emporia-vue-3.yaml --device /dev/ttyUSB0
+```
+
+### 5. Full configuration over Wi-Fi
+
+1. Copy [`example/vue3.yaml`](example/vue3.yaml) over the placeholder config (keep the API encryption key the
+   wizard generated, or set your own).
+2. Fill in the circuit names and `phase_id` for each breaker from your panel notes.
+3. **Install → Wirelessly**. All later changes go the same way; the serial wires are not needed again.
+
+The first boot on the bench will log `I2C error` lines until the Vue is powered from the panel, because the
+metering MCU is unpowered without mains. That is expected.
+
+### 6. Restoring the factory firmware
+
+If you ever want the Emporia app back:
+
+```sh
+esptool --port /dev/ttyUSB0 write-flash 0 vue-orig-backup.bin
+```
 
 ## Using this fork
 
