@@ -112,7 +112,7 @@ Every upstream option still works unchanged. The additions below are all optiona
 |---|---------|-----------|--------|
 | 1 | Apparent power, reactive power, power factor per CT | `ct_clamps[].apparent_power` / `reactive_power` / `power_factor` | done |
 | 2 | Per-CT calibration gain (scales power **and** current) | `ct_clamps[].calibration` (default `1.0`) | done |
-| 3 | Unconnected CT inputs (0xFFFF) publish NaN instead of garbage | automatic | done |
+| 3 | Unconnected CT inputs (0x5000 on the Vue 3) publish NaN instead of garbage | automatic | verified on hardware |
 | 4 | Checksum discovery / validation | `checksum: none \| discover \| sum8_body \| …` | discover mode; algorithm not yet confirmed |
 | 5 | Missed-reading detection fixed across the 255→0 sequence wrap | automatic | done |
 | 6 | Raw period/angle averaging for finer frequency and phase-angle resolution | `frequency_samples: N` (default `1`) | done |
@@ -171,7 +171,8 @@ consistent:
 
 ### 3. Disconnected inputs
 
-The Vue 3 reports `0xFFFF` current on a port with no CT. Those ports now publish NaN (and log once) instead of
+The Vue 3 reports a current value of exactly `0x5000` on a port with no CT (verified: plugging a CT into a port
+drops it to a normal reading while the others stay at `0x5000`). Those ports now publish NaN (and log once) instead of
 nonsense. You can still remove unused entries from the config; this just stops bad data if you forget.
 
 ### 4. Checksum

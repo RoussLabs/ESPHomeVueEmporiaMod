@@ -228,8 +228,9 @@ enum CTInputPort : uint8_t {
   SIXTEEN = 18,
 };
 
-// Reported in the current field for a port with no CT connected.
-static constexpr uint16_t CT_DISCONNECTED_SENTINEL = 0xFFFF;
+// Current-field value for a port with no CT connected. 0x5000 is what a Vue 3
+// reports (verified on hardware); 0xFFFF was reported in upstream discussion.
+static inline bool is_ct_disconnected(uint16_t raw_current) { return raw_current == 0x5000 || raw_current == 0xFFFF; }
 
 class CTClampConfig : public sensor::Sensor {
  public:

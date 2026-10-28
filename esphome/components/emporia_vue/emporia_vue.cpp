@@ -358,11 +358,11 @@ void VirtualPhaseConfig::update_from_reading(const SensorReading &sensor_reading
 
 void CTClampConfig::update_from_reading(const SensorReading &sensor_reading) {
   uint16_t raw_current = sensor_reading.current[this->input_port_];
-  if (raw_current == CT_DISCONNECTED_SENTINEL) {
-    // The metering MCU reports 0xFFFF current on a port with no CT plugged in
-    // (observed on the Vue 3). Publish NaN rather than a nonsense value.
+  if (is_ct_disconnected(raw_current)) {
+    // No CT plugged into this port: publish NaN rather than a nonsense value.
     if (!this->warned_disconnected_) {
-      ESP_LOGW(TAG, "CT port index %d reports no clamp connected (0xFFFF); publishing NaN", this->input_port_);
+      ESP_LOGW(TAG, "CT port index %d reports no clamp connected (0x%04X); publishing NaN", this->input_port_,
+               raw_current);
       this->warned_disconnected_ = true;
     }
     if (this->power_sensor_)
