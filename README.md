@@ -203,122 +203,6 @@ The packet header carries a checksum byte that upstream reads but never checks. 
 
 If `crc8` reports mismatches on a Vue 2, please open an issue with a few `discover` captures.
 
-### 6. Restoring the factory firmware
-
-If you ever want the Emporia app back:
-
-```sh
-esptool --port /dev/ttyUSB0 write-flash 0 vue-orig-backup.bin
-```
-
-## Using this fork
-
-```yaml
-external_components:
-  - source: github://RoussLabs/ESPHomeVueEmporiaMod@main
-    components: [emporia_vue]
-    # refresh: 0s   # while testing: re-fetch the component on every build (default is 1 day)
-```
-
-Every upstream option still works unchanged. The additions below are all optional and default to upstream behaviour.
-
-## What's added
-
-| # | Feature | Config key | Status |
-|---|---------|-----------|--------|
-| 1 | Apparent power, reactive power, power factor per CT | `ct_clamps[].apparent_power` / `reactive_power` / `power_factor` | done |
-| 2 | Per-CT calibration gain (scales power **and** current) | `ct_clamps[].calibration` (default `1.0`) | done |
-| 2b | Per-CT sign inversion at the source (Vue 3 branch inputs read inverted) | `ct_clamps[].invert: true` | verified on hardware |
-| 3 | Unconnected CT inputs (0x5000 on the Vue 3) publish NaN instead of garbage | automatic | verified on hardware |
-| 4 | Packet CRC-8 validation | `checksum: none \| discover \| crc8` | algorithm identified and verified on Vue 3 |
-| 5 | Missed-reading detection fixed across the 255→0 sequence wrap | automatic | done |
-| 6 | Raw period/angle averaging for finer frequency and phase-angle resolution | `frequency_samples: N` (default `1`) | done |
-| 7 | Diagnostic counters | `i2c_errors`, `malformed_readings`, `missed_readings` | done |
-| 8 | Virtual (line-to-line) phases for 240 V split-phase / 208 V circuits with one CT | `virtual_phases:` | done, needs field testing |
-| 9 | `dump_config` lists every sensor; minor cleanups | — | done |
-
-### 1. Apparent power, reactive power, power factor
-
-**The short version, for anyone new to this.** With AC, voltage and current are waves, and a load can draw
-current that is out of step with the voltage. That gives four related numbers:
-
-- **Real power (W)** is the energy actually consumed per second. It's what the utility bills and what heats
-  the room. A 1500 W heater uses 1500 W, full stop.
-- **Apparent power (VA)** is simply volts × amps. It's the capacity the wiring, breaker and transformer must
-  carry, whether or not the energy is used.
-- **Reactive power (var)** is the part of the current that sloshes back and forth each cycle without being
-  consumed: motors, transformers and the filters inside electronics cause it. It shows up as amps on the
-  wire but not as watts on the bill.
-- **Power factor** is real ÷ apparent, from 0 to 1. A heater or incandescent bulb is 1.00: every amp does
-  work. A fridge compressor might be 0.7, a cheap LED driver or phone charger 0.5 or worse, meaning they draw
-  roughly twice the current their wattage suggests.
-
-Why care, at home: PF explains why a circuit's amps don't match its watts, which devices are stressing a
-circuit more than their consumption implies, and whether a reading is trustworthy (a resistive load that
-doesn't show PF ≈ 1 means the calibration is off, not the load).
-
-The metering MCU reports real power (P) and true-RMS current (I) per CT and RMS voltage (V) per leg. The
-component now derives, from the same 200 ms reading:
-
-- `apparent_power` S = V × I (VA)
-- `reactive_power` Q = √(S² − P²) (var)
-- `power_factor` PF = P / S (true power factor, so it includes distortion from switch-mode loads)
-
-PF is published as NaN below 1 VA, where the ratio is noise.
-
-```yaml
-ct_clamps:
-  - phase_id: phase_a
-    input: "3"
-    power:          { name: "Fridge Power" }
-    current:        { name: "Fridge Current" }
-    apparent_power: { name: "Fridge Apparent Power" }
-    power_factor:   { name: "Fridge Power Factor" }
-```
-
-### 2. Per-CT calibration
-
-Upstream has one `calibration` per leg that scales voltage and every power reading on that leg together, and
-current had no calibration at all. Each CT now takes its own gain, applied to both power and current so PF stays
-consistent:
-
-```yaml
-  - { phase_id: phase_a, input: "5", calibration: 1.013, power: { id: cir5 } }
-```
-
-### 2b. Inverted inputs
-
-On the Vue 3, branch inputs 1 to 16 report real power with the opposite sign to the mains inputs: a resistive
-load on a correctly oriented CT reads negative. Upstream's answer is a `*neg` filter on the power sensor, but a
-filter runs after the component, so the derived power factor still comes out as −1.00. `invert: true` flips the
-sign inside the component, before PF is computed, so power and PF agree:
-
-```yaml
-  - { phase_id: phase_a, input: "1", invert: true, power: { id: cir1, filters: [*pos] }, power_factor: { id: cir1_pf } }
-```
-
-Verified with a 372 W resistive load through a Fluke 87V: power within 0.2 %, current within 0.5 %, PF −1.00
-without `invert` and +1.00 with it. Mains inputs A/B/C are not inverted.
-
-### 3. Disconnected inputs
-
-The Vue 3 reports a current value of exactly `0x5000` on a port with no CT (verified: plugging a CT into a port
-drops it to a normal reading while the others stay at `0x5000`). Those ports now publish NaN (and log once) instead of
-nonsense. You can still remove unused entries from the config; this just stops bad data if you forget.
-
-### 4. Checksum
-
-The packet header carries a checksum byte but the algorithm isn't publicly documented. Set `checksum: discover`
-and watch the log for 10 lines like:
-
-```
-checksum=0x3A unknown=0x52 seq=17 | body: sum8=0x3A xor8=0x91 negsum8=0xC6 | all: sum8=0x2F xor8=0x4C negsum8=0xD1
-```
-
-If one candidate matches the packet value every time, set `checksum:` to that name (`sum8_body` in the example)
-and bad packets will be discarded and counted in `malformed_readings`. If nothing matches, leave it at `none` and
-please open an issue with a few log lines.
-
 ### 6. Frequency / phase-angle resolution and calibration
 
 The MCU gives the mains period as an integer count (~327 at 60 Hz on the Vue 3), so one reading resolves to
@@ -370,6 +254,33 @@ not absolute.
 
 Only use this for loads with **no neutral current**. A dryer or range with 120 V controls still needs one CT per
 leg, summed in a template sensor.
+
+## Reading the voltages: why the legs sag, and what the tilt means
+
+Voltage drop happens in layers along the path from the utility transformer to the appliance, and the Vue sits in
+the middle of that path.
+
+**Shared layers**: the transformer winding, the service drop, the meter and the panel bus bars. Any current on
+a leg flows through all of these, so a heavy load pulls the whole bus for that leg down. Every circuit on the
+same leg sees it, and so does the Vue, because the harness reads voltage at the breakers. Neighbours on the same
+pole transformer share the first layer too, which is why voltage dips when nothing in your house changed.
+
+**Private layers**: the branch wiring from the breaker to the outlet, and the cord. That drop is seen only by
+the appliance on that circuit. A 1500 W heater on a long 14 AWG run might sag the bus by half a volt and its own
+outlet by 3 or 4 V; the Vue sees only the half volt.
+
+**The two legs are not independent.** In a split-phase panel both legs share the neutral back to the
+transformer's centre tap. Balanced loads cancel in the neutral; an imbalanced load (heavy on L1, light on L2)
+pushes current through the neutral, and the drop across it shifts the centre point: L1 sags *more* than its own
+series resistance explains, and L2 *rises* by about the same amount. A 240 V load draws from both legs equally,
+sags the 240 V, but doesn't tip the see-saw. Watch `L1 Voltage` and `L2 Voltage` when the dryer runs versus
+when a space heater on one leg runs and you'll see both behaviours.
+
+**That see-saw is a safety diagnostic.** A healthy service shows a fraction of a volt of tilt under imbalance. A
+corroded or loose neutral at the meter or panel shows several volts, and in the worst case one leg climbs toward
+140 V while the other falls toward 100 V, which destroys electronics. A Home Assistant automation that notifies
+when `|L1 − L2|` exceeds a few volts for more than a minute is one of the more useful things a panel monitor can
+do that a plug-in meter never could.
 
 ## Calibrating with a true-RMS meter
 
