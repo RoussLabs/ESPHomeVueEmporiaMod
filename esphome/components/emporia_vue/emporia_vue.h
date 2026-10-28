@@ -56,13 +56,8 @@ struct RawTiming {
 
 enum class ChecksumMode : uint8_t {
   CHECKSUM_MODE_NONE = 0,
-  CHECKSUM_MODE_DISCOVER,
-  CHECKSUM_MODE_SUM8_BODY,
-  CHECKSUM_MODE_XOR8_BODY,
-  CHECKSUM_MODE_NEGSUM8_BODY,
-  CHECKSUM_MODE_SUM8_ALL,
-  CHECKSUM_MODE_XOR8_ALL,
-  CHECKSUM_MODE_NEGSUM8_ALL,
+  CHECKSUM_MODE_DISCOVER,  // log the CRC check and raw packet periodically, never discard
+  CHECKSUM_MODE_CRC8,      // discard packets whose CRC-8 does not match
 };
 
 class PhaseConfig;

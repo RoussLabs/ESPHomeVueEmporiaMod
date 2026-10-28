@@ -113,7 +113,108 @@ Every upstream option still works unchanged. The additions below are all optiona
 | 1 | Apparent power, reactive power, power factor per CT | `ct_clamps[].apparent_power` / `reactive_power` / `power_factor` | done |
 | 2 | Per-CT calibration gain (scales power **and** current) | `ct_clamps[].calibration` (default `1.0`) | done |
 | 3 | Unconnected CT inputs (0x5000 on the Vue 3) publish NaN instead of garbage | automatic | verified on hardware |
-| 4 | Checksum discovery / validation | `checksum: none \| discover \| sum8_body \| …` | discover mode; algorithm not yet confirmed |
+| 4 | Packet CRC-8 validation | `checksum: none \| discover \| crc8` | algorithm identified and verified on Vue 3 |
+| 5 | Missed-reading detection fixed across the 255→0 sequence wrap | automatic | done |
+| 6 | Raw period/angle averaging for finer frequency and phase-angle resolution | `frequency_samples: N` (default `1`) | done |
+| 7 | Diagnostic counters | `i2c_errors`, `malformed_readings`, `missed_readings` | done |
+| 8 | Virtual (line-to-line) phases for 240 V split-phase / 208 V circuits with one CT | `virtual_phases:` | done, needs field testing |
+| 9 | `dump_config` lists every sensor; minor cleanups | — | done |
+
+### 1. Apparent power, reactive power, power factor
+
+**The short version, for anyone new to this.** With AC, voltage and current are waves, and a load can draw
+current that is out of step with the voltage. That gives four related numbers:
+
+- **Real power (W)** is the energy actually consumed per second. It's what the utility bills and what heats
+  the room. A 1500 W heater uses 1500 W, full stop.
+- **Apparent power (VA)** is simply volts × amps. It's the capacity the wiring, breaker and transformer must
+  carry, whether or not the energy is used.
+- **Reactive power (var)** is the part of the current that sloshes back and forth each cycle without being
+  consumed: motors, transformers and the filters inside electronics cause it. It shows up as amps on the
+  wire but not as watts on the bill.
+- **Power factor** is real ÷ apparent, from 0 to 1. A heater or incandescent bulb is 1.00: every amp does
+  work. A fridge compressor might be 0.7, a cheap LED driver or phone charger 0.5 or worse, meaning they draw
+  roughly twice the current their wattage suggests.
+
+Why care, at home: PF explains why a circuit's amps don't match its watts, which devices are stressing a
+circuit more than their consumption implies, and whether a reading is trustworthy (a resistive load that
+doesn't show PF ≈ 1 means the calibration is off, not the load).
+
+The metering MCU reports real power (P) and true-RMS current (I) per CT and RMS voltage (V) per leg. The
+component now derives, from the same 200 ms reading:
+
+- `apparent_power` S = V × I (VA)
+- `reactive_power` Q = √(S² − P²) (var)
+- `power_factor` PF = P / S (true power factor, so it includes distortion from switch-mode loads)
+
+PF is published as NaN below 1 VA, where the ratio is noise.
+
+```yaml
+ct_clamps:
+  - phase_id: phase_a
+    input: "3"
+    power:          { name: "Fridge Power" }
+    current:        { name: "Fridge Current" }
+    apparent_power: { name: "Fridge Apparent Power" }
+    power_factor:   { name: "Fridge Power Factor" }
+```
+
+### 2. Per-CT calibration
+
+Upstream has one `calibration` per leg that scales voltage and every power reading on that leg together, and
+current had no calibration at all. Each CT now takes its own gain, applied to both power and current so PF stays
+consistent:
+
+```yaml
+  - { phase_id: phase_a, input: "5", calibration: 1.013, power: { id: cir5 } }
+```
+
+### 3. Disconnected inputs
+
+The Vue 3 reports a current value of exactly `0x5000` on a port with no CT (verified: plugging a CT into a port
+drops it to a normal reading while the others stay at `0x5000`). Those ports now publish NaN (and log once) instead of
+nonsense. You can still remove unused entries from the config; this just stops bad data if you forget.
+
+### 4. Checksum
+
+The packet header carries a checksum byte that upstream reads but never checks. It is a **CRC-8, polynomial
+0x07, initial value 0x1D, no reflection, no final XOR, over every byte after the checksum field** (bytes 2 to
+283). This was found by brute force against four packets captured from a Vue 3 and matches all of them.
+
+- `checksum: crc8` verifies every packet and discards mismatches, counting them in `malformed_readings`.
+- `checksum: discover` logs the check result together with the raw per-port values and the whole packet in hex
+  (first 10 packets, then once a minute). Useful for studying the protocol or if a Vue 2 turns out to differ.
+- `checksum: none` (default) is upstream behaviour.
+
+If `crc8` reports mismatches on a Vue 2, please open an issue with a few `discover` captures.
+
+### 6. Restoring the factory firmware
+
+If you ever want the Emporia app back:
+
+```sh
+esptool --port /dev/ttyUSB0 write-flash 0 vue-orig-backup.bin
+```
+
+## Using this fork
+
+```yaml
+external_components:
+  - source: github://RoussLabs/ESPHomeVueEmporiaMod@main
+    components: [emporia_vue]
+    # refresh: 0s   # while testing: re-fetch the component on every build (default is 1 day)
+```
+
+Every upstream option still works unchanged. The additions below are all optional and default to upstream behaviour.
+
+## What's added
+
+| # | Feature | Config key | Status |
+|---|---------|-----------|--------|
+| 1 | Apparent power, reactive power, power factor per CT | `ct_clamps[].apparent_power` / `reactive_power` / `power_factor` | done |
+| 2 | Per-CT calibration gain (scales power **and** current) | `ct_clamps[].calibration` (default `1.0`) | done |
+| 3 | Unconnected CT inputs (0x5000 on the Vue 3) publish NaN instead of garbage | automatic | verified on hardware |
+| 4 | Packet CRC-8 validation | `checksum: none \| discover \| crc8` | algorithm identified and verified on Vue 3 |
 | 5 | Missed-reading detection fixed across the 255→0 sequence wrap | automatic | done |
 | 6 | Raw period/angle averaging for finer frequency and phase-angle resolution | `frequency_samples: N` (default `1`) | done |
 | 7 | Diagnostic counters | `i2c_errors`, `malformed_readings`, `missed_readings` | done |

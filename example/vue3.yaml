@@ -114,7 +114,7 @@ sensor:
 
     # --- fork options -------------------------------------------------------
     frequency_samples: 25            # ~6 s of raw period counts -> ~0.01 Hz
-    checksum: discover               # watch the log; switch to the matching mode
+    checksum: crc8                   # verified on Vue 3; use 'discover' to log raw packets
     i2c_errors:         { name: "Vue I2C Errors" }
     malformed_readings: { name: "Vue Malformed Readings" }
     missed_readings:    { name: "Vue Missed Readings" }

@@ -79,14 +79,10 @@ EmporiaVueUpdateTrigger = emporia_vue_ns.class_(
 ChecksumMode = emporia_vue_ns.enum("ChecksumMode", is_class=True)
 CHECKSUM_MODES = {
     "none": ChecksumMode.CHECKSUM_MODE_NONE,
-    # log candidate checksums for the first packets so the algorithm can be found
+    # log the CRC check plus raw packet contents for the first packets and then once a minute
     "discover": ChecksumMode.CHECKSUM_MODE_DISCOVER,
-    "sum8_body": ChecksumMode.CHECKSUM_MODE_SUM8_BODY,
-    "xor8_body": ChecksumMode.CHECKSUM_MODE_XOR8_BODY,
-    "negsum8_body": ChecksumMode.CHECKSUM_MODE_NEGSUM8_BODY,
-    "sum8_all": ChecksumMode.CHECKSUM_MODE_SUM8_ALL,
-    "xor8_all": ChecksumMode.CHECKSUM_MODE_XOR8_ALL,
-    "negsum8_all": ChecksumMode.CHECKSUM_MODE_NEGSUM8_ALL,
+    # verify CRC-8 (poly 0x07, init 0x1D) and discard bad packets
+    "crc8": ChecksumMode.CHECKSUM_MODE_CRC8,
 }
 
 PhaseInputWire = emporia_vue_ns.enum("PhaseInputWire")
@@ -256,7 +252,7 @@ CONFIG_SCHEMA = cv.All(
             # Average the raw period / phase-angle counts over this many readings
             # (each ~240 ms) before converting to Hz / degrees. 1 = no averaging.
             cv.Optional(CONF_FREQUENCY_SAMPLES, default=1): cv.int_range(min=1, max=250),
-            # Packet checksum handling; the MCU's algorithm is not yet confirmed.
+            # Packet checksum handling. 'crc8' is verified on Vue 3 hardware.
             cv.Optional(CONF_CHECKSUM, default="none"): cv.enum(CHECKSUM_MODES, lower=True),
             # Diagnostic counters (since boot)
             cv.Optional(CONF_I2C_ERRORS): DIAGNOSTIC_COUNTER_SCHEMA,

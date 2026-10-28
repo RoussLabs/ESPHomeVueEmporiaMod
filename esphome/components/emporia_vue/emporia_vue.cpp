@@ -145,32 +145,18 @@ void EmporiaVueComponent::setup() {
     this->missed_reading_sensor_->publish_state(0);
 }
 
-// Candidate checksums over the body (after the 4-byte header) and over the
-// whole packet minus the checksum byte; the real algorithm is not yet known.
-struct ChecksumCandidates {
-  uint8_t sum_body, xor_body, negsum_body;
-  uint8_t sum_all, xor_all, negsum_all;
-};
-
-static ChecksumCandidates compute_checksum_candidates(const SensorReading &reading) {
+// Packet checksum: CRC-8, polynomial 0x07, init 0x1D, no reflection or final
+// XOR, over every byte after the checksum field. Found by brute force against
+// four captured Vue 3 packets (RoussLabs, 2026-10-27).
+static uint8_t compute_packet_crc8(const SensorReading &reading) {
   const auto *bytes = reinterpret_cast<const uint8_t *>(&reading);
-  const size_t len = sizeof(SensorReading);
-  const size_t checksum_offset = offsetof(SensorReading, checksum);
-  const size_t body_start = offsetof(SensorReading, power);
-
-  uint8_t sum_body = 0, xor_body = 0, sum_all = 0, xor_all = 0;
-  for (size_t i = 0; i < len; i++) {
-    if (i == checksum_offset)
-      continue;
-    sum_all += bytes[i];
-    xor_all ^= bytes[i];
-    if (i >= body_start) {
-      sum_body += bytes[i];
-      xor_body ^= bytes[i];
-    }
+  uint8_t crc = 0x1D;
+  for (size_t i = offsetof(SensorReading, checksum) + 1; i < sizeof(SensorReading); i++) {
+    crc ^= bytes[i];
+    for (int b = 0; b < 8; b++)
+      crc = (crc & 0x80) ? static_cast<uint8_t>((crc << 1) ^ 0x07) : static_cast<uint8_t>(crc << 1);
   }
-  return ChecksumCandidates{sum_body, xor_body, static_cast<uint8_t>(-sum_body),
-                            sum_all,  xor_all,  static_cast<uint8_t>(-sum_all)};
+  return crc;
 }
 
 // Raw per-port values, index order is the MCU's (Vue 3: 0=C 1=B 2=A, then 1..16).
@@ -210,45 +196,19 @@ bool EmporiaVueComponent::check_checksum_(const SensorReading &reading) {
   if (this->checksum_mode_ == ChecksumMode::CHECKSUM_MODE_NONE)
     return true;
 
-  ChecksumCandidates c = compute_checksum_candidates(reading);
+  uint8_t expected = compute_packet_crc8(reading);
 
   if (this->checksum_mode_ == ChecksumMode::CHECKSUM_MODE_DISCOVER) {
     // Log the first 10 packets, then one every ~60 s, so a log attached at any time sees data.
     uint32_t n = this->discover_counter_++;
     if (n < 10 || n % 250 == 0) {
-      ESP_LOGI(TAG,
-               "checksum=0x%02X unknown=0x%02X seq=%u | body: sum8=0x%02X xor8=0x%02X negsum8=0x%02X | "
-               "all: sum8=0x%02X xor8=0x%02X negsum8=0x%02X",
-               reading.checksum, reading.unknown, reading.sequence_num, c.sum_body, c.xor_body, c.negsum_body,
-               c.sum_all, c.xor_all, c.negsum_all);
+      ESP_LOGI(TAG, "checksum=0x%02X crc8=0x%02X (%s) unknown=0x%02X seq=%u", reading.checksum, expected,
+               expected == reading.checksum ? "match" : "MISMATCH", reading.unknown, reading.sequence_num);
       this->log_raw_ports_(reading);
     }
     return true;
   }
 
-  uint8_t expected;
-  switch (this->checksum_mode_) {
-    case ChecksumMode::CHECKSUM_MODE_SUM8_BODY:
-      expected = c.sum_body;
-      break;
-    case ChecksumMode::CHECKSUM_MODE_XOR8_BODY:
-      expected = c.xor_body;
-      break;
-    case ChecksumMode::CHECKSUM_MODE_NEGSUM8_BODY:
-      expected = c.negsum_body;
-      break;
-    case ChecksumMode::CHECKSUM_MODE_SUM8_ALL:
-      expected = c.sum_all;
-      break;
-    case ChecksumMode::CHECKSUM_MODE_XOR8_ALL:
-      expected = c.xor_all;
-      break;
-    case ChecksumMode::CHECKSUM_MODE_NEGSUM8_ALL:
-      expected = c.negsum_all;
-      break;
-    default:
-      return true;
-  }
   if (expected != reading.checksum) {
     ESP_LOGW(TAG, "Checksum mismatch: packet 0x%02X, computed 0x%02X; discarding reading", reading.checksum, expected);
     return false;
