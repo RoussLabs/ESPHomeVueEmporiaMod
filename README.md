@@ -112,6 +112,7 @@ Every upstream option still works unchanged. The additions below are all optiona
 |---|---------|-----------|--------|
 | 1 | Apparent power, reactive power, power factor per CT | `ct_clamps[].apparent_power` / `reactive_power` / `power_factor` | done |
 | 2 | Per-CT calibration gain (scales power **and** current) | `ct_clamps[].calibration` (default `1.0`) | done |
+| 2b | Per-CT sign inversion at the source (Vue 3 branch inputs read inverted) | `ct_clamps[].invert: true` | verified on hardware |
 | 3 | Unconnected CT inputs (0x5000 on the Vue 3) publish NaN instead of garbage | automatic | verified on hardware |
 | 4 | Packet CRC-8 validation | `checksum: none \| discover \| crc8` | algorithm identified and verified on Vue 3 |
 | 5 | Missed-reading detection fixed across the 255→0 sequence wrap | automatic | done |
@@ -168,6 +169,20 @@ consistent:
 ```yaml
   - { phase_id: phase_a, input: "5", calibration: 1.013, power: { id: cir5 } }
 ```
+
+### 2b. Inverted inputs
+
+On the Vue 3, branch inputs 1 to 16 report real power with the opposite sign to the mains inputs: a resistive
+load on a correctly oriented CT reads negative. Upstream's answer is a `*neg` filter on the power sensor, but a
+filter runs after the component, so the derived power factor still comes out as −1.00. `invert: true` flips the
+sign inside the component, before PF is computed, so power and PF agree:
+
+```yaml
+  - { phase_id: phase_a, input: "1", invert: true, power: { id: cir1, filters: [*pos] }, power_factor: { id: cir1_pf } }
+```
+
+Verified with a 372 W resistive load through a Fluke 87V: power within 0.2 %, current within 0.5 %, PF −1.00
+without `invert` and +1.00 with it. Mains inputs A/B/C are not inverted.
 
 ### 3. Disconnected inputs
 
@@ -213,6 +228,7 @@ Every upstream option still works unchanged. The additions below are all optiona
 |---|---------|-----------|--------|
 | 1 | Apparent power, reactive power, power factor per CT | `ct_clamps[].apparent_power` / `reactive_power` / `power_factor` | done |
 | 2 | Per-CT calibration gain (scales power **and** current) | `ct_clamps[].calibration` (default `1.0`) | done |
+| 2b | Per-CT sign inversion at the source (Vue 3 branch inputs read inverted) | `ct_clamps[].invert: true` | verified on hardware |
 | 3 | Unconnected CT inputs (0x5000 on the Vue 3) publish NaN instead of garbage | automatic | verified on hardware |
 | 4 | Packet CRC-8 validation | `checksum: none \| discover \| crc8` | algorithm identified and verified on Vue 3 |
 | 5 | Missed-reading detection fixed across the 255→0 sequence wrap | automatic | done |
@@ -269,6 +285,20 @@ consistent:
 ```yaml
   - { phase_id: phase_a, input: "5", calibration: 1.013, power: { id: cir5 } }
 ```
+
+### 2b. Inverted inputs
+
+On the Vue 3, branch inputs 1 to 16 report real power with the opposite sign to the mains inputs: a resistive
+load on a correctly oriented CT reads negative. Upstream's answer is a `*neg` filter on the power sensor, but a
+filter runs after the component, so the derived power factor still comes out as −1.00. `invert: true` flips the
+sign inside the component, before PF is computed, so power and PF agree:
+
+```yaml
+  - { phase_id: phase_a, input: "1", invert: true, power: { id: cir1, filters: [*pos] }, power_factor: { id: cir1_pf } }
+```
+
+Verified with a 372 W resistive load through a Fluke 87V: power within 0.2 %, current within 0.5 %, PF −1.00
+without `invert` and +1.00 with it. Mains inputs A/B/C are not inverted.
 
 ### 3. Disconnected inputs
 

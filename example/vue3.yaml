@@ -157,23 +157,24 @@ sensor:
         power_factor:   { id: phase_b_pf }
 
       # Branch circuits. Set phase_id per breaker leg. Vue 3 branch inputs read
-      # inverted, hence *neg. Use leg_1_2 for a pure 240 V load on one CT.
-      - { phase_id: phase_a, input:  "1", power: { id:  cir1, filters: [*neg] } }
-      - { phase_id: phase_b, input:  "2", power: { id:  cir2, filters: [*neg] } }
-      - { phase_id: phase_a, input:  "3", power: { id:  cir3, filters: [*neg] }, power_factor: { id: cir3_pf } }
-      - { phase_id: leg_1_2, input:  "4", power: { id:  cir4, filters: [*neg] } }   # e.g. water heater, 240 V
-      - { phase_id: phase_a, input:  "5", power: { id:  cir5, filters: [*neg] } }
-      - { phase_id: phase_b, input:  "6", power: { id:  cir6, filters: [*neg] } }
-      - { phase_id: phase_a, input:  "7", power: { id:  cir7, filters: [*neg] } }
-      - { phase_id: phase_b, input:  "8", power: { id:  cir8, filters: [*neg] } }
-      - { phase_id: phase_a, input:  "9", power: { id:  cir9, filters: [*neg] } }
-      - { phase_id: phase_b, input: "10", power: { id: cir10, filters: [*neg] } }
-      - { phase_id: phase_a, input: "11", power: { id: cir11, filters: [*neg] } }
-      - { phase_id: phase_b, input: "12", power: { id: cir12, filters: [*neg] } }
-      - { phase_id: phase_a, input: "13", power: { id: cir13, filters: [*neg] } }
-      - { phase_id: phase_b, input: "14", power: { id: cir14, filters: [*neg] } }
-      - { phase_id: phase_a, input: "15", power: { id: cir15, filters: [*neg] } }
-      - { phase_id: phase_b, input: "16", power: { id: cir16, filters: [*neg] } }
+      # inverted, hence invert: true (fixes power and power factor at the source);
+      # *pos then just clamps noise below zero. Use leg_1_2 for a pure 240 V load.
+      - { phase_id: phase_a, input:  "1", invert: true, power: { id: cir1, filters: [*pos] } }
+      - { phase_id: phase_b, input:  "2", invert: true, power: { id: cir2, filters: [*pos] } }
+      - { phase_id: phase_a, input:  "3", invert: true, power: { id: cir3, filters: [*pos] }, power_factor: { id: cir3_pf } }
+      - { phase_id: leg_1_2, input:  "4", invert: true, power: { id: cir4, filters: [*pos] } }   # e.g. water heater, 240 V
+      - { phase_id: phase_a, input:  "5", invert: true, power: { id: cir5, filters: [*pos] } }
+      - { phase_id: phase_b, input:  "6", invert: true, power: { id: cir6, filters: [*pos] } }
+      - { phase_id: phase_a, input:  "7", invert: true, power: { id: cir7, filters: [*pos] } }
+      - { phase_id: phase_b, input:  "8", invert: true, power: { id: cir8, filters: [*pos] } }
+      - { phase_id: phase_a, input:  "9", invert: true, power: { id: cir9, filters: [*pos] } }
+      - { phase_id: phase_b, input: "10", invert: true, power: { id: cir10, filters: [*pos] } }
+      - { phase_id: phase_a, input: "11", invert: true, power: { id: cir11, filters: [*pos] } }
+      - { phase_id: phase_b, input: "12", invert: true, power: { id: cir12, filters: [*pos] } }
+      - { phase_id: phase_a, input: "13", invert: true, power: { id: cir13, filters: [*pos] } }
+      - { phase_id: phase_b, input: "14", invert: true, power: { id: cir14, filters: [*pos] } }
+      - { phase_id: phase_a, input: "15", invert: true, power: { id: cir15, filters: [*pos] } }
+      - { phase_id: phase_b, input: "16", invert: true, power: { id: cir16, filters: [*pos] } }
     on_update:
       then:
         - component.update: total_power

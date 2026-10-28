@@ -58,6 +58,7 @@ void EmporiaVueComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  CT Clamp");
     ESP_LOGCONFIG(TAG, "    CT Port Index: %d", ct_clamp->get_input_port());
     ESP_LOGCONFIG(TAG, "    Calibration: %f", ct_clamp->get_calibration());
+    ESP_LOGCONFIG(TAG, "    Inverted: %s", YESNO(ct_clamp->get_invert()));
     LOG_SENSOR("    ", "Power", ct_clamp->get_power_sensor());
     LOG_SENSOR("    ", "Current", ct_clamp->get_current_sensor());
     LOG_SENSOR("    ", "Apparent Power", ct_clamp->get_apparent_power_sensor());
@@ -374,7 +375,8 @@ void CTClampConfig::update_from_reading(const SensorReading &sensor_reading) {
 
 float CTClampConfig::get_calibrated_power(const ReadingPowerEntry &power_entry) const {
   float correction_factor = is_mains_port(this->input_port_) ? 5.5f : 22.0f;
-  return this->phase_->extract_calibrated_power(power_entry) * this->calibration_ / correction_factor;
+  float power = this->phase_->extract_calibrated_power(power_entry) * this->calibration_ / correction_factor;
+  return this->invert_ ? -power : power;
 }
 
 float CTClampConfig::get_calibrated_current(uint16_t raw_current) const {

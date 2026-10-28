@@ -39,6 +39,7 @@ CONF_PHASES = "phases"
 CONF_VIRTUAL_PHASES = "virtual_phases"
 CONF_COMBINE = "combine"
 CONF_ANGLE = "angle"
+CONF_INVERT = "invert"
 CONF_FREQUENCY_CONSTANT = "frequency_constant"
 CONF_PHASE_ID = "phase_id"
 CONF_VARIANT = "variant"
@@ -123,6 +124,9 @@ SCHEMA_CT_CLAMP = {
     # Per-clamp gain applied to both power and current. Use it to trim an
     # individual CT against a reference meter; 1.0 leaves the reading unchanged.
     cv.Optional(CONF_CALIBRATION, default=1.0): cv.positive_float,
+    # Flip the sign of power at the source (before power_factor is derived).
+    # Vue 3 branch inputs 1-16 read inverted; mains A/B/C do not.
+    cv.Optional(CONF_INVERT, default=False): cv.boolean,
     cv.Optional(CONF_POWER): sensor.sensor_schema(
         unit_of_measurement=UNIT_WATT,
         device_class=DEVICE_CLASS_POWER,
@@ -339,6 +343,7 @@ async def to_code(config):
         cg.add(ct_clamp_var.set_phase(phase_var))
         cg.add(ct_clamp_var.set_input_port(ct_config[CONF_INPUT]))
         cg.add(ct_clamp_var.set_calibration(ct_config[CONF_CALIBRATION]))
+        cg.add(ct_clamp_var.set_invert(ct_config[CONF_INVERT]))
 
         if CONF_POWER in ct_config:
             power_sensor = await sensor.new_sensor(ct_config[CONF_POWER])

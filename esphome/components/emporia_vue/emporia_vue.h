@@ -236,6 +236,9 @@ class CTClampConfig : public sensor::Sensor {
   // Per-clamp gain applied to both power and current (CT tolerance / turns ratio).
   void set_calibration(float calibration) { this->calibration_ = calibration; }
   float get_calibration() const { return this->calibration_; }
+  // Flip the sign of real power (Vue 3 branch inputs read inverted). PF follows.
+  void set_invert(bool invert) { this->invert_ = invert; }
+  bool get_invert() const { return this->invert_; }
   void set_power_sensor(sensor::Sensor *power_sensor) { this->power_sensor_ = power_sensor; }
   sensor::Sensor *get_power_sensor() const { return this->power_sensor_; }
   void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
@@ -255,6 +258,7 @@ class CTClampConfig : public sensor::Sensor {
   PhaseBase *phase_;
   CTInputPort input_port_;
   float calibration_{1.0f};
+  bool invert_{false};
   sensor::Sensor *power_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *apparent_power_sensor_{nullptr};
