@@ -182,7 +182,9 @@ sign inside the component, before PF is computed, so power and PF agree:
 ```
 
 Verified with a 372 W resistive load through a Fluke 87V: power within 0.2 %, current within 0.5 %, PF −1.00
-without `invert` and +1.00 with it. Mains inputs A/B/C are not inverted.
+without `invert` and +1.00 with it. Mains inputs A/B/C are not inverted: the same load looped 5× through the
+200 A CT on input A read +1873 W / 15.06 A against 1866 W / 15.01 A expected (+0.4 %, +0.3 %), PF 1.00. So
+upstream's correction factors (22 for branch ports, 5.5 for mains) and current scalars hold on the Vue 3.
 
 ### 3. Disconnected inputs
 
@@ -308,8 +310,6 @@ current; use the 5 s throttled sensors and average a few readings because both t
   `entity_category: diagnostic` / `disabled_by_default` patterns, to keep the HA recorder lean.
 - **Loose-neutral alarm**: Home Assistant automation that notifies when `|L1 − L2|` exceeds ~3 V for more than a
   minute (see "Reading the voltages" above). Needs the Vue in the panel first.
-- **Mains ports**: verify the 5.5 correction factor on inputs A/B/C the same way as the branch ports (resistive
-  load through the Fluke, conductor looped 4–5× through the 200 A CT).
 - **Phase-angle field**: the MCU reports ~45° (wandering 40–65°) for two legs on the same phase. Find out whether it
   is an offset, a different unit, or noise, using the panel reading (expect ~225° if it is an offset). If it is
   usable, re-enable it as an absolute `phase_angle`.
