@@ -226,11 +226,15 @@ sensor:
   - platform: template
     id: balance_power
     lambda: !lambda |-
-      return max(0.0f, id(total_power).state -
-        id( cir1).state - id( cir2).state - id( cir3).state - id( cir4).state -
-        id( cir5).state - id( cir6).state - id( cir7).state - id( cir8).state -
-        id( cir9).state - id(cir10).state - id(cir11).state - id(cir12).state -
-        id(cir13).state - id(cir14).state - id(cir15).state - id(cir16).state);
+      // circuits with no CT publish NaN; skip them so they don't poison the sum
+      float sum = 0.0f;
+      for (float p : { id( cir1).state, id( cir2).state, id( cir3).state, id( cir4).state,
+                       id( cir5).state, id( cir6).state, id( cir7).state, id( cir8).state,
+                       id( cir9).state, id(cir10).state, id(cir11).state, id(cir12).state,
+                       id(cir13).state, id(cir14).state, id(cir15).state, id(cir16).state }) {
+        if (!std::isnan(p)) sum += p;
+      }
+      return max(0.0f, id(total_power).state - sum);
     update_interval: never
     device_class: power
     state_class: measurement

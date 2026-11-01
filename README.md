@@ -250,9 +250,10 @@ for any angle between the legs and replaces the old `multiply: 2` approximation.
 V<sub>b</sub>| by the law of cosines using the configured `angle` (default 180, giving V<sub>a</sub> +
 V<sub>b</sub>).
 
-The MCU's own phase-angle measurement is deliberately not used here: on tested hardware it reports about 45°
-for two legs wired to the same phase (true value 0°), so the `phase_angle` sensor is best treated as relative,
-not absolute.
+The MCU's own phase-angle measurement is not used for this calculation. Installed in a split-phase panel it
+reads a correct 178–180°, but on a bench with both voltage inputs fed from the *same* phase it reports a
+jittering 40–65° instead of 0°, so a fixed `angle` is the safer choice. The `phase_angle` sensor itself is
+fine in a real installation.
 
 Only use this for loads with **no neutral current**. A dryer or range with 120 V controls still needs one CT per
 leg, summed in a template sensor.
@@ -305,16 +306,16 @@ current; use the 5 s throttled sensors and average a few readings because both t
 
 ## Open items
 
+- **Balance power with empty ports**: fixed in the example (NaN circuits are skipped in the lambda); if you
+  copied the earlier example or upstream's, update the `balance_power` lambda or Balance reads 0.
+
 - **Slower throttle for secondary sensors**: add a `&throttle_slow` (60 s) alias to the example and show one
   circuit with `current` + `power_factor` on it (dedicated loads) versus power-only (general circuits), plus
   `entity_category: diagnostic` / `disabled_by_default` patterns, to keep the HA recorder lean.
 - **Loose-neutral alarm**: Home Assistant automation that notifies when `|L1 − L2|` exceeds ~3 V for more than a
   minute (see "Reading the voltages" above). Needs the Vue in the panel first.
-- **Phase-angle field**: the MCU reports ~45° (wandering 40–65°) for two legs on the same phase. Find out whether it
-  is an offset, a different unit, or noise, using the panel reading (expect ~225° if it is an offset). If it is
-  usable, re-enable it as an absolute `phase_angle`.
-- **`angle: auto`**: derive the leg-to-leg angle from the per-leg power columns of a loaded CT
-  (cos θ = P<sub>b</sub>/P<sub>a</sub> × V<sub>a</sub>/V<sub>b</sub> for a resistive load) instead of the MCU field.
+- **`angle: auto`**: the MCU's measured angle reads 179° in the panel (the bench 45° was a same-phase
+  artifact), so an `auto` setting that uses it is viable for 208 V installs; low priority.
 - **Vue 2 CRC**: confirm that `checksum: crc8` also holds on a Vue 2, or find its variant.
 - **Upstream PRs**: offer the fixes and features back to emporia-vue-local one at a time (see below).
 
