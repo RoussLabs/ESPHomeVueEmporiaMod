@@ -79,22 +79,24 @@ i2c:
 substitutions:
   leg_1: "L1"
   leg_2: "L2"
-  cir_1: "Circuit 1"
-  cir_2: "Circuit 2"
-  cir_3: "Circuit 3"
-  cir_4: "Circuit 4"
-  cir_5: "Circuit 5"
-  cir_6: "Circuit 6"
-  cir_7: "Circuit 7"
-  cir_8: "Circuit 8"
-  cir_9: "Circuit 9"
-  cir_10: "Circuit 10"
-  cir_11: "Circuit 11"
-  cir_12: "Circuit 12"
-  cir_13: "Circuit 13"
-  cir_14: "Circuit 14"
-  cir_15: "Circuit 15"
-  cir_16: "Circuit 16"
+  # Port-based names; rename to the appliance in Home Assistant so moving a CT
+  # to another port never changes an entity's unique ID.
+  cir_1: "CT 1"
+  cir_2: "CT 2"
+  cir_3: "CT 3"
+  cir_4: "CT 4"
+  cir_5: "CT 5"
+  cir_6: "CT 6"
+  cir_7: "CT 7"
+  cir_8: "CT 8"
+  cir_9: "CT 9"
+  cir_10: "CT 10"
+  cir_11: "CT 11"
+  cir_12: "CT 12"
+  cir_13: "CT 13"
+  cir_14: "CT 14"
+  cir_15: "CT 15"
+  cir_16: "CT 16"
   xtra: "Balance"
 
 .filters:
@@ -179,6 +181,7 @@ sensor:
       then:
         - component.update: total_power
         - component.update: balance_power
+        - component.update: stove_power      # one line per appliance sum below
 
   # throttled copies for HA
   - { platform: copy, name: "${leg_1} Power",          source_id: phase_a_power,   filters: *throttle_avg }
@@ -219,6 +222,26 @@ sensor:
   - platform: total_daily_energy
     name: "Total Daily Energy"
     power_id: total_power
+    accuracy_decimals: 0
+    restore: false
+    filters: *throttle_time
+
+  # --- Appliance sums for two-leg circuits with a neutral (stove, dryer) ------
+  # Each leg has its own CT (ports 4 and 5 here). The per-port sensors above stay
+  # named by port; this pair is the only place the appliance is named in YAML.
+  # Put "Stove Daily Energy" in the HA Energy dashboard, not the two per-leg ones.
+  - platform: template
+    name: "Stove Power"
+    id: stove_power
+    lambda: return id(cir4).state + id(cir5).state;
+    update_interval: never                 # refreshed from on_update above
+    device_class: power
+    state_class: measurement
+    unit_of_measurement: "W"
+    filters: *throttle_avg
+  - platform: total_daily_energy
+    name: "Stove Daily Energy"
+    power_id: stove_power
     accuracy_decimals: 0
     restore: false
     filters: *throttle_time
