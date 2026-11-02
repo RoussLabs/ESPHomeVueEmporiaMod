@@ -164,13 +164,13 @@ sensor:
       - { phase_id: phase_a, input:  "1", invert: true, power: { id: cir1, filters: [*pos] } }
       - { phase_id: phase_b, input:  "2", invert: true, power: { id: cir2, filters: [*pos] } }
       - { phase_id: phase_a, input:  "3", invert: true, power: { id: cir3, filters: [*pos] }, power_factor: { id: cir3_pf } }
-      - { phase_id: leg_1_2, input:  "4", invert: true, power: { id: cir4, filters: [*pos] } }   # e.g. water heater, 240 V
+      - { phase_id: phase_b, input:  "4", invert: true, power: { id: cir4, filters: [*pos] } }
       - { phase_id: phase_a, input:  "5", invert: true, power: { id: cir5, filters: [*pos] } }
       - { phase_id: phase_b, input:  "6", invert: true, power: { id: cir6, filters: [*pos] } }
       - { phase_id: phase_a, input:  "7", invert: true, power: { id: cir7, filters: [*pos] } }
       - { phase_id: phase_b, input:  "8", invert: true, power: { id: cir8, filters: [*pos] } }
       - { phase_id: phase_a, input:  "9", invert: true, power: { id: cir9, filters: [*pos] } }
-      - { phase_id: phase_b, input: "10", invert: true, power: { id: cir10, filters: [*pos] } }
+      - { phase_id: leg_1_2, input: "10", invert: true, power: { id: cir10, filters: [*pos] } }   # AC condenser: 240 V, no neutral, one CT
       - { phase_id: phase_a, input: "11", invert: true, power: { id: cir11, filters: [*pos] } }
       - { phase_id: phase_b, input: "12", invert: true, power: { id: cir12, filters: [*pos] } }
       - { phase_id: phase_a, input: "13", invert: true, power: { id: cir13, filters: [*pos] } }
@@ -228,13 +228,13 @@ sensor:
     filters: *throttle_time
 
   # --- Appliance sums for two-leg circuits with a neutral (stove, dryer) ------
-  # Each leg has its own CT (stove on ports 4+5, dryer on 6+7 here; adjust). The per-port sensors above stay
+  # Each leg has its own CT (dryer on ports 1+2, stove on 8+9 here; adjust). The per-port sensors above stay
   # named by port; this pair is the only place the appliance is named in YAML.
   # Put "Stove Daily Energy" in the HA Energy dashboard, not the two per-leg ones.
   - platform: template
     name: "Stove Power"
     id: stove_power
-    lambda: return id(cir4).state + id(cir5).state;
+    lambda: return id(cir8).state + id(cir9).state;
     update_interval: never                 # refreshed from on_update above
     device_class: power
     state_class: measurement
@@ -250,7 +250,7 @@ sensor:
   - platform: template
     name: "Dryer Power"
     id: dryer_power
-    lambda: return id(cir6).state + id(cir7).state;   # set to the dryer's two ports
+    lambda: return id(cir1).state + id(cir2).state;
     update_interval: never
     device_class: power
     state_class: measurement
