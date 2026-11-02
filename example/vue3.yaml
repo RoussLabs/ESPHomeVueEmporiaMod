@@ -182,6 +182,7 @@ sensor:
         - component.update: total_power
         - component.update: balance_power
         - component.update: stove_power      # one line per appliance sum below
+        - component.update: dryer_power
 
   # throttled copies for HA
   - { platform: copy, name: "${leg_1} Power",          source_id: phase_a_power,   filters: *throttle_avg }
@@ -227,7 +228,7 @@ sensor:
     filters: *throttle_time
 
   # --- Appliance sums for two-leg circuits with a neutral (stove, dryer) ------
-  # Each leg has its own CT (ports 4 and 5 here). The per-port sensors above stay
+  # Each leg has its own CT (stove on ports 4+5, dryer on 6+7 here; adjust). The per-port sensors above stay
   # named by port; this pair is the only place the appliance is named in YAML.
   # Put "Stove Daily Energy" in the HA Energy dashboard, not the two per-leg ones.
   - platform: template
@@ -242,6 +243,22 @@ sensor:
   - platform: total_daily_energy
     name: "Stove Daily Energy"
     power_id: stove_power
+    accuracy_decimals: 0
+    restore: false
+    filters: *throttle_time
+
+  - platform: template
+    name: "Dryer Power"
+    id: dryer_power
+    lambda: return id(cir6).state + id(cir7).state;   # set to the dryer's two ports
+    update_interval: never
+    device_class: power
+    state_class: measurement
+    unit_of_measurement: "W"
+    filters: *throttle_avg
+  - platform: total_daily_energy
+    name: "Dryer Daily Energy"
+    power_id: dryer_power
     accuracy_decimals: 0
     restore: false
     filters: *throttle_time
