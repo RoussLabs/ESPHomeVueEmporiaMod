@@ -168,7 +168,7 @@ sensor:
       # inverted, hence invert: true; *pos then just clamps noise below zero.
       # Every CT gets a power_factor; a negative PF under load flags a wrong leg
       # or a backwards clamp instantly, where power alone would silently read 0.
-      # Below power_factor_min_apparent_power (default 10 VA; the noise floor of
+      # Below power_factor_min_apparent_power (default 25 VA, the noise floor of
       # an unloaded port) PF publishes power_factor_idle_value (default 0).
       - { phase_id: phase_a, input:  "1", invert: true, power: { id:  cir1, filters: [*pos] }, power_factor: { id:  cir1_pf }, apparent_power: { id: cir1_va } }
       - { phase_id: phase_b, input:  "2", invert: true, power: { id:  cir2, filters: [*pos] }, power_factor: { id:  cir2_pf }, apparent_power: { id: cir2_va } }
@@ -278,10 +278,10 @@ sensor:
   - platform: template
     name: "CT 8+9 Power Factor"
     id: ct8_9_pf
-    # PF of the pair = (P1 + P2) / (S1 + S2); 0 below 10 VA, same as the per-CT sensors
+    # PF of the pair = (P1 + P2) / (S1 + S2); 0 below 25 VA, same as the per-CT sensors
     lambda: |-
       float s = id(cir8_va).state + id(cir9_va).state;
-      return s >= 10.0f ? (id(cir8).state + id(cir9).state) / s : 0.0f;
+      return s >= 25.0f ? (id(cir8).state + id(cir9).state) / s : 0.0f;
     update_interval: never
     device_class: power_factor
     state_class: measurement
@@ -306,10 +306,10 @@ sensor:
   - platform: template
     name: "CT 1+2 Power Factor"
     id: ct1_2_pf
-    # PF of the pair = (P1 + P2) / (S1 + S2); 0 below 10 VA, same as the per-CT sensors
+    # PF of the pair = (P1 + P2) / (S1 + S2); 0 below 25 VA, same as the per-CT sensors
     lambda: |-
       float s = id(cir1_va).state + id(cir2_va).state;
-      return s >= 10.0f ? (id(cir1).state + id(cir2).state) / s : 0.0f;
+      return s >= 25.0f ? (id(cir1).state + id(cir2).state) / s : 0.0f;
     update_interval: never
     device_class: power_factor
     state_class: measurement

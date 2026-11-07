@@ -262,7 +262,7 @@ class CTClampConfig : public sensor::Sensor {
   CTInputPort input_port_;
   float calibration_{1.0f};
   bool invert_{false};
-  float pf_min_apparent_{10.0f};  // VA; an unloaded branch port shows ~0.2 A of noise (~25 VA)
+  float pf_min_apparent_{25.0f};  // VA; an unloaded branch port shows ~0.2 A of noise (~25 VA)
   float pf_idle_value_{0.0f};
   sensor::Sensor *power_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};

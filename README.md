@@ -150,7 +150,7 @@ component now derives, from the same 200 ms reading:
 
 An unloaded branch port shows about 0.2 A of noise, which at 120 V is ~25 VA of "apparent power"; dividing a
 ±1 W power wobble by that gives PF readings of ±0.04 with nothing connected. So below
-`power_factor_min_apparent_power` (default 10 VA) the sensor publishes `power_factor_idle_value` (default
+`power_factor_min_apparent_power` (default 25 VA) the sensor publishes `power_factor_idle_value` (default
 `0`; set `nan` for "unknown"). Raise the threshold on noisy ports, lower it for a port that genuinely carries
 small loads you care about.
 
