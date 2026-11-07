@@ -353,6 +353,11 @@ current; use the 5 s throttled sensors and average a few readings because both t
 3. **Sanity check.** A resistive load should show `power_factor` ≈ 1.00. Anything far off means the current
    scalar is wrong, not the load.
 
+## Notes
+
+[`NOTES.md`](NOTES.md) is the catch-all for things that aren't configuration: recorder/database sizing and how
+to monitor it, references, and findings from testing.
+
 ## Example
 
 [`example/vue3.yaml`](example/vue3.yaml) is a complete Vue 3 config using every option in this fork.
@@ -362,8 +367,6 @@ current; use the 5 s throttled sensors and average a few readings because both t
 - **Balance power with empty ports**: fixed in the example (NaN circuits are skipped in the lambda); if you
   copied the earlier example or upstream's, update the `balance_power` lambda or Balance reads 0.
 
-- **Recorder load**: the example now publishes PF for every CT at a 60 s `&throttle_slow`; consider
-  `entity_category: diagnostic` / `disabled_by_default` on the PF entities if the recorder grows too fast.
 - **Loose-neutral alarm**: Home Assistant automation that notifies when `|L1 − L2|` exceeds ~3 V for more than a
   minute (see "Reading the voltages" above). Needs the Vue in the panel first.
 - **`angle: auto`**: the MCU's measured angle reads 179° in the panel (the bench 45° was a same-phase

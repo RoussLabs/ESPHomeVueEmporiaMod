@@ -104,9 +104,6 @@ substitutions:
     throttle_average: 5s
   - &throttle_time
     throttle: 60s
-  - &throttle_slow
-    # secondary sensors (PF, current): average over 60 s instead of 5 s
-    throttle_average: 60s
   - &neg
     lambda: 'return max(-x, 0.0f);'
   - &pos
@@ -222,23 +219,24 @@ sensor:
   - { platform: copy, name: "${cir_15} Power", source_id: cir15, filters: *throttle_avg }
   - { platform: copy, name: "${cir_16} Power", source_id: cir16, filters: *throttle_avg }
 
-  # Power factor is a slow-moving diagnostic; 60 s updates keep the recorder lean.
-  - { platform: copy, name: "${cir_1} Power Factor", source_id: cir1_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_2} Power Factor", source_id: cir2_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_3} Power Factor", source_id: cir3_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_4} Power Factor", source_id: cir4_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_5} Power Factor", source_id: cir5_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_6} Power Factor", source_id: cir6_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_7} Power Factor", source_id: cir7_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_8} Power Factor", source_id: cir8_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_9} Power Factor", source_id: cir9_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_10} Power Factor", source_id: cir10_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_11} Power Factor", source_id: cir11_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_12} Power Factor", source_id: cir12_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_13} Power Factor", source_id: cir13_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_14} Power Factor", source_id: cir14_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_15} Power Factor", source_id: cir15_pf, filters: *throttle_slow }
-  - { platform: copy, name: "${cir_16} Power Factor", source_id: cir16_pf, filters: *throttle_slow }
+  # Same 5 s rate as power, so every reading in a graph lines up.
+  # See NOTES.md for recorder sizing and how to monitor the database.
+  - { platform: copy, name: "${cir_1} Power Factor", source_id: cir1_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_2} Power Factor", source_id: cir2_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_3} Power Factor", source_id: cir3_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_4} Power Factor", source_id: cir4_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_5} Power Factor", source_id: cir5_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_6} Power Factor", source_id: cir6_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_7} Power Factor", source_id: cir7_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_8} Power Factor", source_id: cir8_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_9} Power Factor", source_id: cir9_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_10} Power Factor", source_id: cir10_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_11} Power Factor", source_id: cir11_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_12} Power Factor", source_id: cir12_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_13} Power Factor", source_id: cir13_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_14} Power Factor", source_id: cir14_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_15} Power Factor", source_id: cir15_pf, filters: *throttle_avg }
+  - { platform: copy, name: "${cir_16} Power Factor", source_id: cir16_pf, filters: *throttle_avg }
 
   - platform: template
     id: total_power
