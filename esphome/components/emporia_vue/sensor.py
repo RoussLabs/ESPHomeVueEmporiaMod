@@ -132,7 +132,7 @@ SCHEMA_CT_CLAMP = {
     # Below this apparent power (VA) the PF ratio is dominated by the CT's noise
     # floor (~0.2 A on an unloaded branch port, ~25 VA at 120 V), so publish the
     # idle value instead. Set idle to "nan" to show unknown rather than 0.
-    cv.Optional(CONF_POWER_FACTOR_MIN_APPARENT_POWER, default=25.0): cv.positive_float,
+    cv.Optional(CONF_POWER_FACTOR_MIN_APPARENT_POWER, default=10.0): cv.positive_float,
     cv.Optional(CONF_POWER_FACTOR_IDLE_VALUE, default=0.0): cv.Any(
         cv.float_range(min=-1.0, max=1.0), cv.one_of("nan", lower=True)
     ),
