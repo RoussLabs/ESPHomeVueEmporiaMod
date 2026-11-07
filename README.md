@@ -200,7 +200,8 @@ The packet header carries a checksum byte that upstream reads but never checks. 
 
 - `checksum: crc8` verifies every packet and discards mismatches, counting them in `malformed_readings`.
 - `checksum: discover` logs the check result together with the raw per-port values and the whole packet in hex
-  (first 10 packets, then once a minute). Useful for studying the protocol or if a Vue 2 turns out to differ.
+  (first 10 packets, then once a minute). It never discards a packet. Use it to diagnose CT wiring (see
+  "Reading a raw dump" below), to study the protocol, or if a Vue 2 turns out to differ.
 - `checksum: none` (default) is upstream behaviour.
 
 If `crc8` reports mismatches on a Vue 2, please open an issue with a few `discover` captures.
@@ -258,6 +259,58 @@ fine in a real installation.
 Only use this for loads with **no neutral current**. A dryer or range with 120 V controls still needs one CT per
 leg, summed in a template sensor.
 
+## Reading a raw dump
+
+With `checksum: discover` the log carries one block like this at boot and then once a minute:
+
+```
+checksum=0x8F crc8=0x8F (match) unknown=0x52 seq=242
+raw current[0..18] hex: 5000 016E 028B 002E 002D 03C4 002D 0035 015C 0116 002D 000F 000F 003D 0050 04F0 000F 0011 0125
+raw power vs BLACK[0..18]: 338915 -223356 408237 1687 755 -610686 -166 -4734 145983 -146349 ...
+raw power vs RED[0..18]:   -329764 224335 -409921 -1682 -762 613113 156 4712 -146885 146862 ...
+raw voltage: 6427 6449 10  period: 326  degrees: 164 0
+pkt[000]: 038F52F2E32B0500...      (4 lines: the whole 284-byte packet in hex)
+```
+
+**Index order.** The 19 values are in the MCU's order, which on the Vue 3 is `C B A 1 2 3 … 16`: index 0 is
+mains C, 1 is mains B, 2 is mains A, and branch port *n* is index *n + 2*. (The Vue 2 has A B C for the first
+three.)
+
+**raw current** (hex, unsigned):
+- `5000` means **no CT plugged into that port**. The component publishes NaN for it.
+- Anything else is RMS current: amps = value × 775 / 42624 on mains ports, value × 775 / 170496 on branch
+  ports. `0x0F` ≈ 0.07 A is an idle circuit; `0x2C` ≈ 0.2 A is typical noise with a clamp on a quiet wire;
+  `0x3C4` = 964 → 4.4 A.
+
+**raw power vs BLACK / RED** (signed): real power of each port's current computed against the L1 (BLACK) and L2
+(RED) voltage respectively. Watts = value × calibration / 5.5 (mains) or / 22 (branch), then negated for
+branch ports if `invert: true`. The two columns are always equal and opposite on a split-phase panel; the
+leg a circuit is really on is the column that comes out **positive after inversion**: for a branch port,
+negative in the BLACK column means it is on L1, negative in the RED column means L2. If the YAML `phase_id`
+disagrees, Home Assistant shows 0 W (the `*pos` filter hides the negative) while the raw current is clearly
+non-zero. Empty ports show ±300 000-ish garbage in these columns; ignore it.
+
+**raw voltage**: three values for L1, L2, L3 inputs, volts = value × calibration (6427 × 0.01922 = 123.5 V).
+An unconnected input reads ~10. **period**: mains period count, Hz = `frequency_constant` / period
+(19623 / 327 = 60.0). **degrees**: angle counts for L2 and L3 relative to L1, degrees = value × 360 / period
+(164 × 360 / 327 = 180°).
+
+**pkt[...]**: the packet itself, for checksum work or for reporting a new hardware revision.
+
+### Diagnosing a circuit from the dump
+
+| Symptom in HA | In the dump | Cause |
+|---|---|---|
+| NaN / unavailable | current `5000` | CT not seated in the terminal, or no CT |
+| 0 W but current present | current non-zero, power negative on the configured leg | wrong `phase_id`, or clamp facing the wrong way |
+| Reads a small fraction of a known load | current far below expected | clamp not snapped shut, or around the wrong conductor (neighbouring wire couples a little) |
+| Reads nothing when a known load is on | no port's current changes while mains does | the clamp is not on that circuit's hot wire |
+| Negative power factor under load | | same as "0 W" row; PF makes it visible instead of silent |
+
+A quick way to get a known load into the dump: run a resistive appliance (toaster, heater) on the circuit and
+compare two dumps, one with it on and one off. The mains column shows which leg it is on and how much; the
+branch port that changes by the same amount is the right CT.
+
 ## Reading the voltages: why the legs sag, and what the tilt means
 
 Voltage drop happens in layers along the path from the utility transformer to the appliance, and the Vue sits in
@@ -309,9 +362,8 @@ current; use the 5 s throttled sensors and average a few readings because both t
 - **Balance power with empty ports**: fixed in the example (NaN circuits are skipped in the lambda); if you
   copied the earlier example or upstream's, update the `balance_power` lambda or Balance reads 0.
 
-- **Slower throttle for secondary sensors**: add a `&throttle_slow` (60 s) alias to the example and show one
-  circuit with `current` + `power_factor` on it (dedicated loads) versus power-only (general circuits), plus
-  `entity_category: diagnostic` / `disabled_by_default` patterns, to keep the HA recorder lean.
+- **Recorder load**: the example now publishes PF for every CT at a 60 s `&throttle_slow`; consider
+  `entity_category: diagnostic` / `disabled_by_default` on the PF entities if the recorder grows too fast.
 - **Loose-neutral alarm**: Home Assistant automation that notifies when `|L1 − L2|` exceeds ~3 V for more than a
   minute (see "Reading the voltages" above). Needs the Vue in the panel first.
 - **`angle: auto`**: the MCU's measured angle reads 179° in the panel (the bench 45° was a same-phase

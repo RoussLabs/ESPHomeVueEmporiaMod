@@ -104,6 +104,9 @@ substitutions:
     throttle_average: 5s
   - &throttle_time
     throttle: 60s
+  - &throttle_slow
+    # secondary sensors (PF, current): average over 60 s instead of 5 s
+    throttle_average: 60s
   - &neg
     lambda: 'return max(-x, 0.0f);'
   - &pos
@@ -116,7 +119,12 @@ sensor:
 
     # --- fork options -------------------------------------------------------
     frequency_samples: 25            # ~6 s of raw period counts -> ~0.01 Hz
-    checksum: crc8                   # verified on Vue 3; use 'discover' to log raw packets
+    # checksum: none      -> upstream behaviour, packets are not verified
+    # checksum: crc8      -> verify the packet CRC-8 and drop corrupted packets (verified on Vue 3)
+    # checksum: discover  -> never drop; log the CRC result and a raw dump of every
+    #                        port (first 10 packets, then once a minute). Use this
+    #                        for diagnosing CT wiring; see README "Reading a raw dump".
+    checksum: crc8
     i2c_errors:         { name: "Vue I2C Errors" }
     malformed_readings: { name: "Vue Malformed Readings" }
     missed_readings:    { name: "Vue Missed Readings" }
@@ -158,31 +166,33 @@ sensor:
         apparent_power: { id: phase_b_va }
         power_factor:   { id: phase_b_pf }
 
-      # Branch circuits. Set phase_id per breaker leg. Vue 3 branch inputs read
-      # inverted, hence invert: true (fixes power and power factor at the source);
-      # *pos then just clamps noise below zero. Use leg_1_2 for a pure 240 V load.
-      - { phase_id: phase_a, input:  "1", invert: true, power: { id: cir1, filters: [*pos] } }
-      - { phase_id: phase_b, input:  "2", invert: true, power: { id: cir2, filters: [*pos] } }
-      - { phase_id: phase_a, input:  "3", invert: true, power: { id: cir3, filters: [*pos] }, power_factor: { id: cir3_pf } }
-      - { phase_id: phase_b, input:  "4", invert: true, power: { id: cir4, filters: [*pos] } }
-      - { phase_id: phase_a, input:  "5", invert: true, power: { id: cir5, filters: [*pos] } }
-      - { phase_id: phase_b, input:  "6", invert: true, power: { id: cir6, filters: [*pos] } }
-      - { phase_id: phase_a, input:  "7", invert: true, power: { id: cir7, filters: [*pos] } }
-      - { phase_id: phase_b, input:  "8", invert: true, power: { id: cir8, filters: [*pos] } }
-      - { phase_id: phase_a, input:  "9", invert: true, power: { id: cir9, filters: [*pos] } }
-      - { phase_id: leg_1_2, input: "10", invert: true, power: { id: cir10, filters: [*pos] } }   # AC condenser: 240 V, no neutral, one CT
-      - { phase_id: phase_a, input: "11", invert: true, power: { id: cir11, filters: [*pos] } }
-      - { phase_id: phase_b, input: "12", invert: true, power: { id: cir12, filters: [*pos] } }
-      - { phase_id: phase_a, input: "13", invert: true, power: { id: cir13, filters: [*pos] } }
-      - { phase_id: phase_b, input: "14", invert: true, power: { id: cir14, filters: [*pos] } }
-      - { phase_id: phase_a, input: "15", invert: true, power: { id: cir15, filters: [*pos] } }
-      - { phase_id: phase_b, input: "16", invert: true, power: { id: cir16, filters: [*pos] } }
+      # Branch circuits. Set phase_id per breaker leg (sign check: a loaded circuit
+      # with negative power or PF is on the wrong leg). Vue 3 branch inputs read
+      # inverted, hence invert: true; *pos then just clamps noise below zero.
+      # Every CT gets a power_factor; a negative PF under load flags a wrong leg
+      # or a backwards clamp instantly, where power alone would silently read 0.
+      - { phase_id: phase_a, input:  "1", invert: true, power: { id:  cir1, filters: [*pos] }, power_factor: { id:  cir1_pf } }
+      - { phase_id: phase_b, input:  "2", invert: true, power: { id:  cir2, filters: [*pos] }, power_factor: { id:  cir2_pf } }
+      - { phase_id: phase_a, input:  "3", invert: true, power: { id:  cir3, filters: [*pos] }, power_factor: { id:  cir3_pf } }
+      - { phase_id: phase_b, input:  "4", invert: true, power: { id:  cir4, filters: [*pos] }, power_factor: { id:  cir4_pf } }
+      - { phase_id: phase_a, input:  "5", invert: true, power: { id:  cir5, filters: [*pos] }, power_factor: { id:  cir5_pf } }
+      - { phase_id: phase_b, input:  "6", invert: true, power: { id:  cir6, filters: [*pos] }, power_factor: { id:  cir6_pf } }
+      - { phase_id: phase_a, input:  "7", invert: true, power: { id:  cir7, filters: [*pos] }, power_factor: { id:  cir7_pf } }
+      - { phase_id: phase_b, input:  "8", invert: true, power: { id:  cir8, filters: [*pos] }, power_factor: { id:  cir8_pf } }
+      - { phase_id: phase_a, input:  "9", invert: true, power: { id:  cir9, filters: [*pos] }, power_factor: { id:  cir9_pf } }
+      - { phase_id: leg_1_2, input: "10", invert: true, power: { id: cir10, filters: [*pos] }, power_factor: { id: cir10_pf } }   # 240 V load, no neutral, one CT
+      - { phase_id: phase_a, input: "11", invert: true, power: { id: cir11, filters: [*pos] }, power_factor: { id: cir11_pf } }
+      - { phase_id: phase_b, input: "12", invert: true, power: { id: cir12, filters: [*pos] }, power_factor: { id: cir12_pf } }
+      - { phase_id: phase_a, input: "13", invert: true, power: { id: cir13, filters: [*pos] }, power_factor: { id: cir13_pf } }
+      - { phase_id: phase_b, input: "14", invert: true, power: { id: cir14, filters: [*pos] }, power_factor: { id: cir14_pf } }
+      - { phase_id: phase_a, input: "15", invert: true, power: { id: cir15, filters: [*pos] }, power_factor: { id: cir15_pf } }
+      - { phase_id: phase_b, input: "16", invert: true, power: { id: cir16, filters: [*pos] }, power_factor: { id: cir16_pf } }
     on_update:
       then:
         - component.update: total_power
         - component.update: balance_power
-        - component.update: stove_power      # one line per appliance sum below
-        - component.update: dryer_power
+        - component.update: ct1_2_power       # one line per two-leg sum below
+        - component.update: ct8_9_power
 
   # throttled copies for HA
   - { platform: copy, name: "${leg_1} Power",          source_id: phase_a_power,   filters: *throttle_avg }
@@ -195,7 +205,6 @@ sensor:
   - { platform: copy, name: "${leg_2} Power Factor",   source_id: phase_b_pf,      filters: *throttle_avg }
   - { platform: copy, name: "Total Power",             source_id: total_power,     filters: *throttle_avg }
   - { platform: copy, name: "${xtra} Power",           source_id: balance_power,   filters: *throttle_avg }
-  - { platform: copy, name: "${cir_3} Power Factor",   source_id: cir3_pf,         filters: *throttle_avg }
   - { platform: copy, name:  "${cir_1} Power", source_id:  cir1, filters: *throttle_avg }
   - { platform: copy, name:  "${cir_2} Power", source_id:  cir2, filters: *throttle_avg }
   - { platform: copy, name:  "${cir_3} Power", source_id:  cir3, filters: *throttle_avg }
@@ -213,6 +222,24 @@ sensor:
   - { platform: copy, name: "${cir_15} Power", source_id: cir15, filters: *throttle_avg }
   - { platform: copy, name: "${cir_16} Power", source_id: cir16, filters: *throttle_avg }
 
+  # Power factor is a slow-moving diagnostic; 60 s updates keep the recorder lean.
+  - { platform: copy, name: "${cir_1} Power Factor", source_id: cir1_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_2} Power Factor", source_id: cir2_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_3} Power Factor", source_id: cir3_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_4} Power Factor", source_id: cir4_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_5} Power Factor", source_id: cir5_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_6} Power Factor", source_id: cir6_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_7} Power Factor", source_id: cir7_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_8} Power Factor", source_id: cir8_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_9} Power Factor", source_id: cir9_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_10} Power Factor", source_id: cir10_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_11} Power Factor", source_id: cir11_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_12} Power Factor", source_id: cir12_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_13} Power Factor", source_id: cir13_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_14} Power Factor", source_id: cir14_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_15} Power Factor", source_id: cir15_pf, filters: *throttle_slow }
+  - { platform: copy, name: "${cir_16} Power Factor", source_id: cir16_pf, filters: *throttle_slow }
+
   - platform: template
     id: total_power
     lambda: return id(phase_a_power).state + id(phase_b_power).state;
@@ -227,13 +254,13 @@ sensor:
     restore: false
     filters: *throttle_time
 
-  # --- Appliance sums for two-leg circuits with a neutral (stove, dryer) ------
-  # Each leg has its own CT (dryer on ports 1+2, stove on 8+9 here; adjust). The per-port sensors above stay
-  # named by port; this pair is the only place the appliance is named in YAML.
-  # Put "Stove Daily Energy" in the HA Energy dashboard, not the two per-leg ones.
+  # --- Sums for two-leg 120/240 V circuits with a neutral (range, dryer) -------
+  # Each leg has its own CT (1+2 and 8+9 here; adjust). Named by port like
+  # everything else; give them the appliance name in Home Assistant.
+  # Put the summed Daily Energy in the HA Energy dashboard, not the per-leg ones.
   - platform: template
-    name: "Stove Power"
-    id: stove_power
+    name: "CT 8+9 Power"
+    id: ct8_9_power
     lambda: return id(cir8).state + id(cir9).state;
     update_interval: never                 # refreshed from on_update above
     device_class: power
@@ -241,15 +268,15 @@ sensor:
     unit_of_measurement: "W"
     filters: *throttle_avg
   - platform: total_daily_energy
-    name: "Stove Daily Energy"
-    power_id: stove_power
+    name: "CT 8+9 Daily Energy"
+    power_id: ct8_9_power
     accuracy_decimals: 0
     restore: false
     filters: *throttle_time
 
   - platform: template
-    name: "Dryer Power"
-    id: dryer_power
+    name: "CT 1+2 Power"
+    id: ct1_2_power
     lambda: return id(cir1).state + id(cir2).state;
     update_interval: never
     device_class: power
@@ -257,8 +284,8 @@ sensor:
     unit_of_measurement: "W"
     filters: *throttle_avg
   - platform: total_daily_energy
-    name: "Dryer Daily Energy"
-    power_id: dryer_power
+    name: "CT 1+2 Daily Energy"
+    power_id: ct1_2_power
     accuracy_decimals: 0
     restore: false
     filters: *throttle_time
