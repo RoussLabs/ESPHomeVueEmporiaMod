@@ -168,15 +168,15 @@ sensor:
       # inverted, hence invert: true; *pos then just clamps noise below zero.
       # Every CT gets a power_factor; a negative PF under load flags a wrong leg
       # or a backwards clamp instantly, where power alone would silently read 0.
-      - { phase_id: phase_a, input:  "1", invert: true, power: { id:  cir1, filters: [*pos] }, power_factor: { id:  cir1_pf } }
-      - { phase_id: phase_b, input:  "2", invert: true, power: { id:  cir2, filters: [*pos] }, power_factor: { id:  cir2_pf } }
+      - { phase_id: phase_a, input:  "1", invert: true, power: { id:  cir1, filters: [*pos] }, power_factor: { id:  cir1_pf }, apparent_power: { id: cir1_va } }
+      - { phase_id: phase_b, input:  "2", invert: true, power: { id:  cir2, filters: [*pos] }, power_factor: { id:  cir2_pf }, apparent_power: { id: cir2_va } }
       - { phase_id: phase_a, input:  "3", invert: true, power: { id:  cir3, filters: [*pos] }, power_factor: { id:  cir3_pf } }
       - { phase_id: phase_b, input:  "4", invert: true, power: { id:  cir4, filters: [*pos] }, power_factor: { id:  cir4_pf } }
       - { phase_id: phase_a, input:  "5", invert: true, power: { id:  cir5, filters: [*pos] }, power_factor: { id:  cir5_pf } }
       - { phase_id: phase_b, input:  "6", invert: true, power: { id:  cir6, filters: [*pos] }, power_factor: { id:  cir6_pf } }
       - { phase_id: phase_a, input:  "7", invert: true, power: { id:  cir7, filters: [*pos] }, power_factor: { id:  cir7_pf } }
-      - { phase_id: phase_b, input:  "8", invert: true, power: { id:  cir8, filters: [*pos] }, power_factor: { id:  cir8_pf } }
-      - { phase_id: phase_a, input:  "9", invert: true, power: { id:  cir9, filters: [*pos] }, power_factor: { id:  cir9_pf } }
+      - { phase_id: phase_b, input:  "8", invert: true, power: { id:  cir8, filters: [*pos] }, power_factor: { id:  cir8_pf }, apparent_power: { id: cir8_va } }
+      - { phase_id: phase_a, input:  "9", invert: true, power: { id:  cir9, filters: [*pos] }, power_factor: { id:  cir9_pf }, apparent_power: { id: cir9_va } }
       - { phase_id: leg_1_2, input: "10", invert: true, power: { id: cir10, filters: [*pos] }, power_factor: { id: cir10_pf } }   # 240 V load, no neutral, one CT
       - { phase_id: phase_a, input: "11", invert: true, power: { id: cir11, filters: [*pos] }, power_factor: { id: cir11_pf } }
       - { phase_id: phase_b, input: "12", invert: true, power: { id: cir12, filters: [*pos] }, power_factor: { id: cir12_pf } }
@@ -189,7 +189,9 @@ sensor:
         - component.update: total_power
         - component.update: balance_power
         - component.update: ct1_2_power       # one line per two-leg sum below
+        - component.update: ct1_2_pf
         - component.update: ct8_9_power
+        - component.update: ct8_9_pf
 
   # throttled copies for HA
   - { platform: copy, name: "${leg_1} Power",          source_id: phase_a_power,   filters: *throttle_avg }
@@ -271,6 +273,18 @@ sensor:
     accuracy_decimals: 0
     restore: false
     filters: *throttle_time
+  - platform: template
+    name: "CT 8+9 Power Factor"
+    id: ct8_9_pf
+    # PF of the pair = (P1 + P2) / (S1 + S2); NaN below 1 VA, same as the per-CT sensor
+    lambda: |-
+      float s = id(cir8_va).state + id(cir9_va).state;
+      return s > 1.0f ? (id(cir8).state + id(cir9).state) / s : NAN;
+    update_interval: never
+    device_class: power_factor
+    state_class: measurement
+    accuracy_decimals: 2
+    filters: *throttle_avg
 
   - platform: template
     name: "CT 1+2 Power"
@@ -287,6 +301,18 @@ sensor:
     accuracy_decimals: 0
     restore: false
     filters: *throttle_time
+  - platform: template
+    name: "CT 1+2 Power Factor"
+    id: ct1_2_pf
+    # PF of the pair = (P1 + P2) / (S1 + S2); NaN below 1 VA, same as the per-CT sensor
+    lambda: |-
+      float s = id(cir1_va).state + id(cir2_va).state;
+      return s > 1.0f ? (id(cir1).state + id(cir2).state) / s : NAN;
+    update_interval: never
+    device_class: power_factor
+    state_class: measurement
+    accuracy_decimals: 2
+    filters: *throttle_avg
 
   - platform: template
     id: balance_power
