@@ -239,6 +239,9 @@ class CTClampConfig : public sensor::Sensor {
   // Flip the sign of real power (Vue 3 branch inputs read inverted). PF follows.
   void set_invert(bool invert) { this->invert_ = invert; }
   bool get_invert() const { return this->invert_; }
+  // Power factor is published as pf_idle_value when apparent power is below pf_min_apparent (VA).
+  void set_pf_min_apparent(float va) { this->pf_min_apparent_ = va; }
+  void set_pf_idle_value(float v) { this->pf_idle_value_ = v; }
   void set_power_sensor(sensor::Sensor *power_sensor) { this->power_sensor_ = power_sensor; }
   sensor::Sensor *get_power_sensor() const { return this->power_sensor_; }
   void set_current_sensor(sensor::Sensor *current_sensor) { this->current_sensor_ = current_sensor; }
@@ -259,6 +262,8 @@ class CTClampConfig : public sensor::Sensor {
   CTInputPort input_port_;
   float calibration_{1.0f};
   bool invert_{false};
+  float pf_min_apparent_{25.0f};  // VA; an unloaded branch port shows ~0.2 A of noise (~25 VA)
+  float pf_idle_value_{0.0f};
   sensor::Sensor *power_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *apparent_power_sensor_{nullptr};

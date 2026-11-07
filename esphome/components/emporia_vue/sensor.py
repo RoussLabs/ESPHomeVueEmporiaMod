@@ -40,6 +40,8 @@ CONF_VIRTUAL_PHASES = "virtual_phases"
 CONF_COMBINE = "combine"
 CONF_ANGLE = "angle"
 CONF_INVERT = "invert"
+CONF_POWER_FACTOR_MIN_APPARENT_POWER = "power_factor_min_apparent_power"
+CONF_POWER_FACTOR_IDLE_VALUE = "power_factor_idle_value"
 CONF_FREQUENCY_CONSTANT = "frequency_constant"
 CONF_PHASE_ID = "phase_id"
 CONF_VARIANT = "variant"
@@ -127,6 +129,13 @@ SCHEMA_CT_CLAMP = {
     # Flip the sign of power at the source (before power_factor is derived).
     # Vue 3 branch inputs 1-16 read inverted; mains A/B/C do not.
     cv.Optional(CONF_INVERT, default=False): cv.boolean,
+    # Below this apparent power (VA) the PF ratio is dominated by the CT's noise
+    # floor (~0.2 A on an unloaded branch port, ~25 VA at 120 V), so publish the
+    # idle value instead. Set idle to "nan" to show unknown rather than 0.
+    cv.Optional(CONF_POWER_FACTOR_MIN_APPARENT_POWER, default=25.0): cv.positive_float,
+    cv.Optional(CONF_POWER_FACTOR_IDLE_VALUE, default=0.0): cv.Any(
+        cv.float_range(min=-1.0, max=1.0), cv.one_of("nan", lower=True)
+    ),
     cv.Optional(CONF_POWER): sensor.sensor_schema(
         unit_of_measurement=UNIT_WATT,
         device_class=DEVICE_CLASS_POWER,
@@ -344,6 +353,9 @@ async def to_code(config):
         cg.add(ct_clamp_var.set_input_port(ct_config[CONF_INPUT]))
         cg.add(ct_clamp_var.set_calibration(ct_config[CONF_CALIBRATION]))
         cg.add(ct_clamp_var.set_invert(ct_config[CONF_INVERT]))
+        cg.add(ct_clamp_var.set_pf_min_apparent(ct_config[CONF_POWER_FACTOR_MIN_APPARENT_POWER]))
+        idle = ct_config[CONF_POWER_FACTOR_IDLE_VALUE]
+        cg.add(ct_clamp_var.set_pf_idle_value(cg.RawExpression("NAN") if idle == "nan" else float(idle)))
 
         if CONF_POWER in ct_config:
             power_sensor = await sensor.new_sensor(ct_config[CONF_POWER])

@@ -148,7 +148,11 @@ component now derives, from the same 200 ms reading:
 - `reactive_power` Q = √(S² − P²) (var)
 - `power_factor` PF = P / S (true power factor, so it includes distortion from switch-mode loads)
 
-PF is published as NaN below 1 VA, where the ratio is noise.
+An unloaded branch port shows about 0.2 A of noise, which at 120 V is ~25 VA of "apparent power"; dividing a
+±1 W power wobble by that gives PF readings of ±0.04 with nothing connected. So below
+`power_factor_min_apparent_power` (default 25 VA) the sensor publishes `power_factor_idle_value` (default
+`0`; set `nan` for "unknown"). Raise the threshold on noisy ports, lower it for a port that genuinely carries
+small loads you care about.
 
 ```yaml
 ct_clamps:

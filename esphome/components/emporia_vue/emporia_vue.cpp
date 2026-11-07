@@ -367,8 +367,9 @@ void CTClampConfig::update_from_reading(const SensorReading &sensor_reading) {
       this->reactive_power_sensor_->publish_state(q2 > 0.0f ? std::sqrt(q2) : 0.0f);
     }
     if (this->power_factor_sensor_) {
-      // Below ~1 VA the ratio is noise; report NaN so filters/graphs ignore it.
-      this->power_factor_sensor_->publish_state(apparent > 1.0f ? power / apparent : NAN);
+      // Below the noise floor the ratio is meaningless; publish the configured idle value.
+      this->power_factor_sensor_->publish_state(apparent >= this->pf_min_apparent_ ? power / apparent
+                                                                                   : this->pf_idle_value_);
     }
   }
 }
